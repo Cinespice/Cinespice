@@ -36,10 +36,14 @@ See [Android translation](ANDROID-UI.md) and [device checks](TOUCH-CHECKLIST.md)
 | Profile | Real account display name/username, palette, request-feature placeholder, storage/history cleanup, creator links, sign-out |
 
 The single source sheet shows all eligible channels/groups, owner-first, oldest
-available Telegram date first. Ownership/date are not guessed. Tap a row to select
-or deselect; selected rows gain an independent arrow to browse. Scanning while
-visible is gradual, 30 sources at a time. Only selected sources load media. A
-collection page requests at most 30 video and 30 document messages per page.
+available Telegram date first. Ownership/date are not guessed. Typing searches
+saved source metadata and Telegram's local/server chat search; resolve enough IDs
+to find up to 30 actual groups/channels before applying the result cap, since
+Telegram may mix people and bots into an unfiltered result page. Show progress,
+empty and retry/error states in the sheet. Tap a row to select or deselect;
+selected rows gain an independent arrow to browse. Scanning while visible is
+gradual, 30 sources at a time. Only selected sources load media. A collection
+page requests at most 30 video and 30 document messages per page.
 
 ### Saved lists and downloads
 
