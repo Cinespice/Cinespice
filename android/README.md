@@ -1,6 +1,6 @@
 # Cinespice for Android
 
-Native Java Android port of the Swift app, with TDLib and embedded libVLC.
+Native Kotlin/Compose + Java Android port of the Swift app, with TDLib and embedded libVLC.
 Package: `app.cinespice.android`. Android **8.0 or later** (API 26+).
 The iOS project remains at the repository root; the Android project is self-contained here.
 
@@ -14,8 +14,8 @@ These are separate complete APKs; install only the one matching your device.
 Allow your browser/file manager to install unknown apps when Android prompts.
 Open Cinespice, enter your own API ID/hash from https://my.telegram.org, and sign
 in with your Telegram phone/code/password or requested email verification.
-Choose channels/groups in **My channels → Add channels**, return to Library, open a collection,
-and tap Play. Credentials are entered on-device; never put them in Git or send
+Open **Channels** in the header to choose channels/groups. Tap a selected source's
+browse arrow to load its collection, then tap a poster to play. Credentials are entered on-device; never put them in Git or send
 login codes to another person.
 
 The current build uses Android's **debug signing certificate** and is directly
@@ -85,7 +85,7 @@ for dependency sources and licenses before distributing.
   Android Keystore; cloud backup and device transfer excluded.
 - Main/archive channel and group discovery in batches of 30, owned channels
   first, persistent source selection, source title filter and Telegram search.
-  My channels shows selected sources only; Add channels shows discovery. Search
+  A single header Channels picker shows discovery and independent selection/browse actions. Search
   fields retain focus and text while results update, including background batches.
   Private chats and Saved Messages are excluded.
 - Account-specific SQLite metadata, per-filter pagination cursors and history.
@@ -126,3 +126,33 @@ tracks, physical touch, codecs and ARM-device playback still need checking on a
 real device. Automated synthetic tests do not establish those results. The
 loopback server is private to the device and bound to 127.0.0.1; Telegram uses
 TDLib's MTProto transport with no application HTTP endpoint override.
+
+## October 2026 Compose redesign (1.2.0)
+
+Implements [UI specification](../docs/UI-README.md) and
+[Android translation](../docs/ANDROID-UI.md): opaque Ember/Midnight/Pearl/Sage
+palettes, compact header, five destinations, adaptive grid/rail, seven manual
+hero positions, Continue Watching, Favorites/Watchlist, sorting, and compact dark
+VLC options. Catalogue slots explicitly say the catalogue is not connected.
+No poster/trending provider is configured; artwork uses Telegram thumbnails.
+The optimized 1.2.0 APK measures about 33.7 MiB on ARM64 (32.2 MiB ARMv7,
+35.3 MiB x86_64); it retains separate architecture downloads and native stripping.
+
+Page/query/collection/list state uses a ViewModel and SavedStateHandle. Each page
+has separate grid state; changing destinations starts at the top, returning from
+playback retains the underlying composition. Search starts empty and debounces
+selected-source Telegram work. Sorting applies to loaded metadata; filename years
+are hints, not verified release dates. Unknown years follow known years.
+
+Existing account-specific SQLite metadata/history/cursors remain intact, with no
+destructive migration or key changes. New list memberships use scoped `chat:message`
+keys in an additional account-specific Room database (`saved_<account>.db`). They
+are independent of history, media cleanup and source selection. Full-download
+intent/completion is persisted there and refreshed against TDLib on reopen;
+interrupted work exposes Retry rather than silently restarting. There is no
+background transfer service. Exports use Android's document picker.
+
+Automated UI checks use the debug variant (`:app:connectedDebugAndroidTest`);
+optimized native/playback checks can use `-PdeviceTestBuildType=optimized`.
+Physical tablet/foldable/cutout/TalkBack coverage and live Telegram streaming
+remain device acceptance work; emulator results do not establish those behaviors.

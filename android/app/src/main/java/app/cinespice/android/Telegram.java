@@ -35,6 +35,7 @@ final class Telegram {
     private volatile int client;
     private volatile String apiId, apiHash;
     volatile String stage = "credentials", error = "";
+    volatile String displayName = "", username = "";
     volatile Library library;
     volatile long generation;
     private final int[] discovered = {0, 0};
@@ -135,7 +136,11 @@ final class Telegram {
             case "authorizationStateWaitEmailAddress": stage = "email"; break;
             case "authorizationStateWaitEmailCode": stage = "emailCode"; break;
             case "authorizationStateReady": {
-                long account = request(Json.obj("@type", "getMe")).getLong("id");
+                JSONObject me = request(Json.obj("@type", "getMe"));
+                long account = me.getLong("id");
+                displayName = (me.optString("first_name") + " " + me.optString("last_name")).trim();
+                org.json.JSONArray names = Json.array(Json.child(me, "usernames"), "active_usernames");
+                username = names.length() > 0 ? names.optString(0) : "";
                 library = new Library(context, account); generation++;
                 resolvedChats.clear(); discovered[0] = discovered[1] = 0; exhausted[0] = exhausted[1] = false;
                 stage = "ready"; break;
@@ -193,7 +198,7 @@ final class Telegram {
         JSONObject group = request(Json.obj("@type", supergroup ? "getSupergroup" : "getBasicGroup",
             supergroup ? "supergroup_id" : "basic_group_id", type.optLong(supergroup ? "supergroup_id" : "basic_group_id")));
         check(session);
-        store.chat(id, chat.optString("title"), type.optBoolean("is_channel") && Json.type(Json.child(group, "status")).equals("chatMemberStatusCreator"), group.optLong("date"));
+        store.chat(id, chat.optString("title"), Json.type(Json.child(group, "status")).equals("chatMemberStatusCreator"), group.optLong("date"));
     }
     void searchChats(String query) throws Exception {
         Library store = requireLibrary(); long session = generation;

@@ -12,7 +12,7 @@ import androidx.appcompat.widget.AppCompatEditText;
 import com.google.android.material.button.MaterialButton;
 
 final class Ui {
-    static final int BG = Color.rgb(21,20,22), PANEL = Color.rgb(34,32,34), ACCENT = Color.rgb(255,171,118), TEXT = Color.rgb(244,240,236), MUTED = Color.rgb(189,182,176);
+    static final int BG = Color.rgb(21,20,22), PANEL = Color.rgb(34,32,34), ACCENT = Color.rgb(255,119,74), TEXT = Color.rgb(244,240,236), MUTED = Color.rgb(189,182,176);
     static int dp(Activity activity, float value) { return (int) (value * activity.getResources().getDisplayMetrics().density + .5f); }
     static LinearLayout column(Activity activity) {
         LinearLayout layout = new LinearLayout(activity); layout.setOrientation(LinearLayout.VERTICAL); layout.setPadding(dp(activity, 20), dp(activity, 12), dp(activity, 20), dp(activity, 12)); return layout;

@@ -24,6 +24,8 @@ public final class PlayerActivity extends androidx.appcompat.app.AppCompatActivi
     private RangeServer bridge;
     private FrameLayout root;
     private LinearLayout controls;
+    private FrameLayout optionsOverlay;
+    private int pictureChoice;
     private TextView message, time;
     private ProgressBar spinner;
     private SeekBar seek;
@@ -35,7 +37,7 @@ public final class PlayerActivity extends androidx.appcompat.app.AppCompatActivi
     private long session;
     private int importType;
     private final List<File> externalFiles = new ArrayList<>();
-    private final Runnable hide = () -> { if (!released && !playbackError && player != null && player.isPlaying()) controls.setVisibility(View.GONE); };
+    private final Runnable hide = () -> { if (!released && optionsOverlay == null && !playbackError && player != null && player.isPlaying()) controls.setVisibility(View.GONE); };
     private final Runnable tick = new Runnable() {
         @Override public void run() {
             if (released || player == null) return;
@@ -86,7 +88,7 @@ public final class PlayerActivity extends androidx.appcompat.app.AppCompatActivi
         message = Ui.text(this, "Opening in VLC…", 17, Ui.ACCENT); controls.addView(message);
         spinner = new ProgressBar(this); controls.addView(spinner, new LinearLayout.LayoutParams(Ui.dp(this, 32), Ui.dp(this, 32)));
         time = Ui.text(this, "0:00:00", 14, Ui.TEXT); controls.addView(time);
-        seek = new SeekBar(this); seek.setMax(1000); seek.setContentDescription("Video timeline"); controls.addView(seek);
+        seek = new SeekBar(this); seek.setProgressTintList(android.content.res.ColorStateList.valueOf(0xFFFF774A)); seek.setThumbTintList(android.content.res.ColorStateList.valueOf(0xFFFF774A)); seek.setMax(1000); seek.setContentDescription("Video timeline"); controls.addView(seek);
         seek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             public void onStartTrackingTouch(SeekBar bar) { dragging = true; handler.removeCallbacks(hide); }
             public void onStopTrackingTouch(SeekBar bar) { if (player != null && player.isSeekable()) player.setTime(player.getLength() * bar.getProgress() / 1000); dragging = false; reveal(); }
@@ -94,7 +96,7 @@ public final class PlayerActivity extends androidx.appcompat.app.AppCompatActivi
         });
         LinearLayout transport = Ui.row(this);
         Ui.weighted(transport, Ui.button(this, "−10s", () -> skip(-10000)));
-        play = Ui.primary(this, "Pause", () -> { if (player != null) { if (player.isPlaying()) { player.pause(); save(); } else player.play(); reveal(); } }); Ui.weighted(transport, play);
+        play = Ui.primary(this, "Pause", () -> { if (player != null) { if (player.isPlaying()) { player.pause(); save(); } else player.play(); play.setText(player.isPlaying() ? "Pause" : "Play"); reveal(); } }); Ui.weighted(transport, play);
         Ui.weighted(transport, Ui.button(this, "+10s", () -> skip(10000))); controls.addView(transport);
         HorizontalScrollView menuScroll = new HorizontalScrollView(this); LinearLayout menu = Ui.row(this); menuScroll.addView(menu); controls.addView(menuScroll);
         menu.addView(Ui.button(this, "Audio", () -> tracks(false)));
@@ -103,11 +105,11 @@ public final class PlayerActivity extends androidx.appcompat.app.AppCompatActivi
         menu.addView(Ui.button(this, "Picture", this::picture));
         menu.addView(Ui.button(this, "Rotate", () -> { landscape = !landscape; setRequestedOrientation(landscape ? ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE : ActivityInfo.SCREEN_ORIENTATION_PORTRAIT); reveal(); }));
         menu.addView(Ui.button(this, "Lock", () -> { locked = true; controls.setVisibility(View.GONE); unlock.setVisibility(View.VISIBLE); }));
-        menu.addView(Ui.button(this, "Download", () -> {
+        menu.addView(Ui.button(this, "More", () -> options("More", new String[]{"Download first"}, -1, index -> {
             if (player != null) player.pause();
             if (bridge != null) { bridge.close(); bridge = null; }
             telegram.io.execute(() -> { try { telegram.download(video); runOnUiThread(() -> { Toast.makeText(this, "Downloading. Reopen the video after download completes.", Toast.LENGTH_LONG).show(); finish(); }); } catch (Exception e) { runOnUiThread(() -> message.setText(e.getMessage())); } });
-        }));
+        })));
         unlock = Ui.primary(this, "Unlock", () -> { locked = false; unlock.setVisibility(View.GONE); reveal(); }); unlock.setVisibility(View.GONE);
     }
     private void start() throws Exception {
@@ -167,12 +169,13 @@ public final class PlayerActivity extends androidx.appcompat.app.AppCompatActivi
         if (subtitles) { names.add("Off"); ids.add(-1); }
         if (tracks != null) for (MediaPlayer.TrackDescription track : tracks) { if (subtitles && track.id == -1) continue; names.add(track.name); ids.add(track.id); }
         names.add("Add external " + (subtitles ? "subtitles" : "audio") + "…"); names.add("Adjust delay…"); if (subtitles) names.add("Subtitle size…");
-        new AlertDialog.Builder(this).setTitle(subtitles ? "Subtitles" : "Audio tracks").setItems(names.toArray(new String[0]), (d, index) -> {
-            if (index < ids.size()) { if (subtitles) player.setSpuTrack(ids.get(index)); else player.setAudioTrack(ids.get(index)); }
+        int selected = ids.indexOf(subtitles ? player.getSpuTrack() : player.getAudioTrack());
+        options(subtitles ? "Subtitles" : "Audio tracks", names.toArray(new String[0]), selected, index -> {
+            if (index < ids.size()) { if (subtitles) player.setSpuTrack(ids.get(index)); else player.setAudioTrack(ids.get(index)); tracks(subtitles); }
             else if (index == ids.size()) { importType = subtitles ? IMedia.Slave.Type.Subtitle : IMedia.Slave.Type.Audio; startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE), 200); }
             else if (index == ids.size() + 1) delay(subtitles);
             else subtitleSize();
-        }).setNegativeButton("Close", null).show();
+        });
     }
     private void delay(boolean subtitles) {
         LinearLayout panel = Ui.column(this); TextView label = Ui.text(this, "", 18, Ui.TEXT); panel.addView(label);
@@ -183,29 +186,61 @@ public final class PlayerActivity extends androidx.appcompat.app.AppCompatActivi
             boolean changed = subtitles ? player.setSpuDelay(value) : player.setAudioDelay(value);
             if (!changed) Toast.makeText(this, "VLC could not change this delay.", Toast.LENGTH_SHORT).show(); update.run();
         })); panel.addView(buttons);
-        new AlertDialog.Builder(this).setTitle(subtitles ? "Subtitle delay" : "Audio delay").setView(panel).setPositiveButton("Done", null).show();
+        panel(subtitles ? "Subtitle delay" : "Audio delay", panel);
     }
     private void subtitleSize() {
         String[] names = {"Smallest", "Small", "Normal", "Large", "Largest"}; int[] sizes = {20,18,16,12,6};
         int current = getPreferences(0).getInt("subtitleSize", 16), selected = 2; for (int i = 0; i < sizes.length; i++) if (sizes[i] == current) selected = i;
-        new AlertDialog.Builder(this).setTitle("Subtitle size · reopens video").setSingleChoiceItems(names, selected, (d, which) -> {
+        options("Subtitle size · reopens video", names, selected, which -> {
             getPreferences(0).edit().putInt("subtitleSize", sizes[which]).apply(); save();
-            getIntent().putExtra("resume", true); d.dismiss(); recreate();
-        }).setNegativeButton("Cancel", null).show();
+            getIntent().putExtra("resume", true); closeOptions(); recreate();
+        });
     }
     private void speed() {
         float[] values = {.25f,.5f,.75f,1,1.25f,1.5f,1.75f,2,3,4}; String[] names = new String[values.length];
         for (int i = 0; i < values.length; i++) names[i] = values[i] + "×";
-        new AlertDialog.Builder(this).setTitle("Playback speed").setItems(names, (d, index) -> { player.setRate(values[index]); reveal(); }).show();
+        int selected = -1; for (int i = 0; i < values.length; i++) if (Math.abs(player.getRate() - values[i]) < .01f) selected = i;
+        options("Playback speed", names, selected, index -> { player.setRate(values[index]); Toast.makeText(this, names[index], Toast.LENGTH_SHORT).show(); reveal(); });
     }
     private void picture() {
-        new AlertDialog.Builder(this).setTitle("Picture").setItems(new String[]{"Fit", "Fill / crop", "16:9", "4:3", "21:9", edges ? "Respect screen edges" : "Use screen edges"}, (d, index) -> {
+        options("Picture", new String[]{"Fit", "Fill / crop", "16:9", "4:3", "21:9", edges ? "Respect screen edges" : "Use screen edges"}, pictureChoice, index -> {
+            if (index < 5) pictureChoice = index;
             if (index == 5) { edges = !edges; getWindow().getDecorView().setSystemUiVisibility(edges ? View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY : View.SYSTEM_UI_FLAG_VISIBLE); root.requestApplyInsets(); }
             else if (index == 4) { player.setVideoScale(MediaPlayer.ScaleType.SURFACE_BEST_FIT); player.setAspectRatio("21:9"); }
             else { player.setAspectRatio(null); player.setVideoScale(new MediaPlayer.ScaleType[]{MediaPlayer.ScaleType.SURFACE_BEST_FIT, MediaPlayer.ScaleType.SURFACE_FILL, MediaPlayer.ScaleType.SURFACE_16_9, MediaPlayer.ScaleType.SURFACE_4_3}[index]); }
             reveal();
-        }).show();
+        });
     }
+    private void options(String title, String[] labels, int selected, java.util.function.IntConsumer action) {
+        LinearLayout content = Ui.column(this); content.setPadding(Ui.dp(this, 8), 0, Ui.dp(this, 8), Ui.dp(this, 8));
+        for (int i = 0; i < labels.length; i++) {
+            final int index = i;
+            Button choice = Ui.quiet(this, (i == selected ? "✓ " : "") + labels[i], () -> { closeOptions(); action.accept(index); });
+            choice.setGravity(Gravity.START | Gravity.CENTER_VERTICAL); choice.setTextColor(i == selected ? 0xFFFF774A : Ui.TEXT);
+            content.addView(choice, new LinearLayout.LayoutParams(-1, -2));
+        }
+        panel(title, content);
+    }
+    private void panel(String title, View content) {
+        closeOptions(); handler.removeCallbacks(hide);
+        optionsOverlay = new FrameLayout(this); optionsOverlay.setContentDescription("Player options");
+        optionsOverlay.setOnClickListener(v -> closeOptions());
+        LinearLayout panel = Ui.column(this); panel.setPadding(Ui.dp(this, 12), Ui.dp(this, 8), Ui.dp(this, 12), Ui.dp(this, 12));
+        panel.setOnClickListener(v -> { });
+        android.graphics.drawable.GradientDrawable background = new android.graphics.drawable.GradientDrawable();
+        background.setColor(0xFF141414); background.setCornerRadius(Ui.dp(this, 16)); background.setStroke(Ui.dp(this, 1), 0xFFFF774A); panel.setBackground(background);
+        LinearLayout heading = Ui.row(this); TextView label = Ui.text(this, title, 16, Ui.TEXT); Ui.weighted(heading, label);
+        Button close = Ui.quiet(this, "×", this::closeOptions); close.setContentDescription("Close player options"); heading.addView(close); panel.addView(heading);
+        final int maximum = (int) (getResources().getDisplayMetrics().heightPixels * (landscape ? .60f : .32f));
+        ScrollView scroll = new ScrollView(this) {
+            @Override protected void onMeasure(int widthSpec, int heightSpec) { super.onMeasure(widthSpec, View.MeasureSpec.makeMeasureSpec(maximum, View.MeasureSpec.AT_MOST)); }
+        }; scroll.addView(content); panel.addView(scroll);
+        int width = Math.min(getResources().getDisplayMetrics().widthPixels - Ui.dp(this, 32), Ui.dp(this, landscape ? 340 : 420));
+        FrameLayout.LayoutParams position = new FrameLayout.LayoutParams(width, -2, Gravity.BOTTOM | (landscape ? Gravity.END : Gravity.CENTER_HORIZONTAL));
+        position.setMargins(Ui.dp(this, 16), Ui.dp(this, 16), Ui.dp(this, 16), Ui.dp(this, 16)); optionsOverlay.addView(panel, position);
+        root.addView(optionsOverlay, new FrameLayout.LayoutParams(-1, -1));
+    }
+    private void closeOptions() { if (optionsOverlay != null) { root.removeView(optionsOverlay); optionsOverlay = null; reveal(); } }
     @Override protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request, result, data);
         if (request != 200 || result != RESULT_OK || data == null || data.getData() == null) return;

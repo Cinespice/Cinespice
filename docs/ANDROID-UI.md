@@ -1,6 +1,7 @@
 # Cinespice Android UI implementation guide
 
-Specification for a future Android app; no Android app is implemented here.
+The Android implementation lives in `android/` (Kotlin/Compose + existing Java repositories and libVLC).
+See [build instructions and validation limits](../android/README.md).
 Use [the iOS UI specification](UI-README.md) as the behavior/data contract. Reuse
 its exact four palette hex values, saved-list rules, sorting and seven hero roles.
 

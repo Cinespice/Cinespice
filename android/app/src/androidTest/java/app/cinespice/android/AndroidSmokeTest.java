@@ -60,6 +60,24 @@ public class AndroidSmokeTest {
         if (view instanceof android.view.ViewGroup group) for (int i = 0; i < group.getChildCount(); i++) if (containsText(group.getChildAt(i), fragment)) return true;
         return false;
     }
+    private static android.view.View find(android.view.View view, String label) {
+        if (label.contentEquals(view.getContentDescription() == null ? "" : view.getContentDescription())) return view;
+        if (view instanceof android.widget.TextView text && text.getText().toString().equals(label)) return view;
+        if (view instanceof android.view.ViewGroup group) for (int i = 0; i < group.getChildCount(); i++) { android.view.View found = find(group.getChildAt(i), label); if (found != null) return found; }
+        return null;
+    }
+    private void verifyPanel(PlayerActivity activity, boolean landscape) {
+        instrumentation.runOnMainSync(() -> { android.view.View speed = find(activity.getWindow().getDecorView(), "Speed"); assertNotNull(speed); speed.performClick(); });
+        instrumentation.waitForIdleSync();
+        instrumentation.runOnMainSync(() -> {
+            android.view.ViewGroup overlay = (android.view.ViewGroup) find(activity.getWindow().getDecorView(), "Player options"); assertNotNull(overlay);
+            android.view.View panel = overlay.getChildAt(0); float density = activity.getResources().getDisplayMetrics().density;
+            assertTrue("Compact panel width", panel.getWidth() <= (landscape ? 340 : 420) * density + 1);
+            assertTrue("Scrollable options height", panel.getHeight() <= overlay.getHeight() * (landscape ? .60 : .32) + 130 * density);
+            android.view.View close = find(overlay, "Close player options"); assertNotNull(close); close.performClick();
+            assertNull(find(activity.getWindow().getDecorView(), "Player options"));
+        });
+    }
     @Test public void invalidMediaErrorRemainsVisible() throws Exception {
         Telegram telegram = ((CinespiceApp) context.getApplicationContext()).telegram;
         String originalStage = telegram.stage; Library originalLibrary = telegram.library;
@@ -102,6 +120,10 @@ public class AndroidSmokeTest {
             long deadline = SystemClock.elapsedRealtime() + 45000;
             while (SystemClock.elapsedRealtime() < deadline && telegram.library.position(video.key()) < 5000) SystemClock.sleep(500);
             assertTrue("VLC must decode the fixture and persist at least 5 seconds of progress", telegram.library.position(video.key()) >= 5000);
+            verifyPanel(activity, false);
+            PlayerActivity current = activity;
+            instrumentation.runOnMainSync(() -> find(current.getWindow().getDecorView(), "Rotate").performClick());
+            SystemClock.sleep(1500); instrumentation.waitForIdleSync(); verifyPanel(activity, true);
         } finally {
             if (activity != null) { PlayerActivity close = activity; instrumentation.runOnMainSync(close::finish); instrumentation.waitForIdleSync(); }
             telegram.stage = originalStage; telegram.library = originalLibrary; telegram.files.remove(video.fileId); fixture.delete(); context.deleteDatabase("library_-93.db");

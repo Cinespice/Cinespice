@@ -29,7 +29,7 @@ final class Library {
     }
     synchronized List<Chat> chats(boolean selectedOnly) {
         List<Chat> result = new ArrayList<>();
-        try (Cursor rows = db.rawQuery("SELECT id,title,selected FROM chats" + (selectedOnly ? " WHERE selected=1" : "") + " ORDER BY owner DESC,CASE WHEN owner=1 THEN date END,title COLLATE NOCASE", null)) {
+        try (Cursor rows = db.rawQuery("SELECT id,title,selected FROM chats" + (selectedOnly ? " WHERE selected=1" : "") + " ORDER BY owner DESC,CASE WHEN date>0 THEN 0 ELSE 1 END,date,title COLLATE NOCASE", null)) {
             while (rows.moveToNext()) result.add(new Chat(rows.getLong(0), rows.getString(1), rows.getInt(2) == 1));
         }
         return result;
@@ -71,6 +71,13 @@ final class Library {
                 try { result.add(new Video(new JSONObject(rows.getString(0)))); }
                 catch (org.json.JSONException ignored) { /* Discard an unreadable metadata row. */ }
             }
+        }
+        return result;
+    }
+    synchronized List<Video> recentHistory(int limit) {
+        List<Video> result = new ArrayList<>();
+        try (Cursor rows = db.rawQuery("SELECT v.json FROM videos v JOIN chats c ON c.id=v.chat JOIN history h ON h.id=v.id WHERE c.selected=1 ORDER BY h.updated DESC LIMIT ?", new String[]{"" + limit})) {
+            while (rows.moveToNext()) try { result.add(new Video(new JSONObject(rows.getString(0)))); } catch (org.json.JSONException ignored) { }
         }
         return result;
     }

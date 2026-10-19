@@ -27,3 +27,8 @@
 The TDLib, JNI wrapper, LGPL, and Apache 2.0 texts are bundled in the app's
 `assets/licenses/` directory and readable from Settings → Open source notices.
 The Cinespice icon is reused from this repository's committed iOS assets.
+
+The Compose redesign uses Kotlin 2.0.21 (Apache 2.0), Jetpack Compose
+BOM 2024.10.01, Material 3, Activity Compose 1.9.3, Lifecycle 2.8.7 and
+Room 2.6.1 (Apache 2.0). Sources: https://github.com/JetBrains/kotlin and
+https://android.googlesource.com/platform/frameworks/support/.
