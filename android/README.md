@@ -12,7 +12,7 @@ These are separate complete APKs; install only the one matching your device.
 Allow your browser/file manager to install unknown apps when Android prompts.
 Open Cinespice, enter your own API ID/hash from https://my.telegram.org, and sign
 in with your Telegram phone/code/password or requested email verification.
-Choose channels/groups in **My channels**, return to Library, open a collection,
+Choose channels/groups in **My channels → Add channels**, return to Library, open a collection,
 and tap Play. Credentials are entered on-device; never put them in Git or send
 login codes to another person.
 
@@ -41,7 +41,8 @@ sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'platform-tools'
 Find signed installable APKs in `app/build/outputs/apk/debug/`.
 Use `adb install -r app/build/outputs/apk/debug/app-arm64-v8a-debug.apk` for a
 connected ARM64 device. `./gradlew :app:connectedDebugAndroidTest` additionally
-runs the storage, JNI, HTTP range transfer, and local VLC playback checks on a
+runs the channel selection, search focus/keyboard/recreation, storage, JNI,
+HTTP range transfer, and local VLC playback checks on a
 connected Android device/emulator. Test fixtures are synthetic; no account
 credentials are required for those tests.
 
@@ -62,6 +63,8 @@ for dependency sources and licenses before distributing.
   Android Keystore; cloud backup and device transfer excluded.
 - Main/archive channel and group discovery in batches of 30, owned channels
   first, persistent source selection, source title filter and Telegram search.
+  My channels shows selected sources only; Add channels shows discovery. Search
+  fields retain focus and text while results update, including background batches.
   Private chats and Saved Messages are excluded.
 - Account-specific SQLite metadata, per-filter pagination cursors and history.
   Each collection requests up to 30 videos and 30 documents; document filtering

@@ -7,20 +7,38 @@ import android.net.Uri;
 import android.os.*;
 import android.text.InputType;
 import android.view.View;
+import android.view.Gravity;
+import android.view.inputmethod.EditorInfo;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import com.google.android.material.bottomnavigation.BottomNavigationView;
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.progressindicator.LinearProgressIndicator;
+import android.text.TextWatcher;
+import android.text.Editable;
 import android.widget.*;
 import org.json.JSONObject;
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.Future;
 
-public final class MainActivity extends Activity implements Telegram.Listener {
+public final class MainActivity extends AppCompatActivity implements Telegram.Listener {
     private Telegram telegram;
-    private LinearLayout root, body;
+    private LinearLayout root, body, channelChoices, videoResults;
+    private EditText channelFilter;
+    private TextView channelSummary;
+    private LinearProgressIndicator channelProgress;
+    private Button channelRetry;
+    private String channelQuery = "", videoDraft = "";
+    private boolean discovering, channelSearching, discoveryMore = true;
+    private long sourceRequest;
     private TextView status;
     private String renderedStage = "", page = "home", query = "", chatTitle = "";
     private long chat;
     private int displayLimit = 150;
-    private boolean busy, more = true, alive;
+    private boolean busy, more = true, alive, resumed;
     private SearchSession search;
     private Future<?> opening;
     private ProgressDialog openingDialog;
@@ -39,55 +57,69 @@ public final class MainActivity extends Activity implements Telegram.Listener {
     };
     @Override public void onCreate(Bundle state) {
         super.onCreate(state); telegram = ((CinespiceApp) getApplication()).telegram;
-        if (state != null) { page = state.getString("page", "home"); chat = state.getLong("chat"); chatTitle = state.getString("title", ""); }
-        telegram.listen(this); render();
+        if (state != null) { page = state.getString("page", "home"); chat = state.getLong("chat"); chatTitle = state.getString("title", ""); channelQuery = state.getString("channelQuery", ""); videoDraft = state.getString("videoDraft", ""); query = state.getString("query", ""); }
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false); telegram.listen(this); render();
+        getOnBackPressedDispatcher().addCallback(this, new androidx.activity.OnBackPressedCallback(true) {
+            @Override public void handleOnBackPressed() { handleBack(); }
+        });
     }
-    @Override protected void onSaveInstanceState(Bundle state) { super.onSaveInstanceState(state); state.putString("page", page); state.putLong("chat", chat); state.putString("title", chatTitle); }
-    @Override protected void onResume() { super.onResume(); alive = true; timer.post(refreshDownloads); if (telegram.stage.equals("ready")) render(); }
+    @Override protected void onSaveInstanceState(Bundle state) { super.onSaveInstanceState(state); state.putString("page", page); state.putLong("chat", chat); state.putString("title", chatTitle); state.putString("channelQuery", channelQuery); state.putString("videoDraft", videoDraft); state.putString("query", query); }
+    @Override protected void onResume() { super.onResume(); alive = true; timer.post(refreshDownloads); if (resumed && telegram.stage.equals("ready") && !isSourcesPage() && !page.equals("search")) render(); resumed = true; }
     @Override protected void onPause() { alive = false; timer.removeCallbacks(refreshDownloads); super.onPause(); }
     @Override protected void onDestroy() { telegram.unlisten(this); cancelOpen(); if (artwork != null) artwork.close(); super.onDestroy(); }
     @Override public void changed() {
         if (isFinishing() || isDestroyed()) return;
-        if (!renderedStage.equals(telegram.stage)) { busy = false; page = "home"; chat = 0; search = null; render(); }
+        if (!renderedStage.equals(telegram.stage)) { busy = false; sourceRequest++; channelSearching = false; discovering = false; discoveryMore = true; channelQuery = ""; page = "home"; chat = 0; search = null; render(); }
         else if (status != null && !telegram.error.isEmpty()) status.setText(telegram.error);
     }
     private void render() {
         if (isFinishing() || isDestroyed()) return;
         renderedStage = telegram.stage; downloadLabels.clear(); artworkViews.clear();
-        root = Ui.column(this); root.setBackgroundColor(Ui.BG);
-        root.setOnApplyWindowInsetsListener((v, insets) -> { v.setPadding(Ui.dp(this, 16), insets.getSystemWindowInsetTop() + Ui.dp(this, 8), Ui.dp(this, 16), insets.getSystemWindowInsetBottom() + Ui.dp(this, 8)); return insets.consumeSystemWindowInsets(); });
-        setContentView(root); root.requestApplyInsets();
-        LinearLayout brand = Ui.row(this);
-        ImageView icon = new ImageView(this); icon.setImageResource(app.cinespice.android.R.drawable.app_icon); icon.setContentDescription("Cinespice icon"); brand.addView(icon, new LinearLayout.LayoutParams(Ui.dp(this, 44), Ui.dp(this, 44)));
-        TextView title = Ui.heading(this, "  Cinespice"); Ui.weighted(brand, title); root.addView(brand);
-        status = Ui.text(this, telegram.error, 14, Ui.ACCENT); root.addView(status);
+        channelFilter = null; channelChoices = null; videoResults = null;
+        root = Ui.column(this); root.setPadding(0, 0, 0, 0); root.setBackgroundColor(Ui.BG); root.setFocusableInTouchMode(true);
+        ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
+            androidx.core.graphics.Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+            androidx.core.graphics.Insets ime = insets.getInsets(WindowInsetsCompat.Type.ime());
+            v.setPadding(bars.left, bars.top, bars.right, Math.max(bars.bottom, ime.bottom)); return insets;
+        });
+        setContentView(root); ViewCompat.requestApplyInsets(root);
+        LinearLayout brand = Ui.row(this); brand.setPadding(Ui.dp(this, 20), Ui.dp(this, 8), Ui.dp(this, 20), Ui.dp(this, 8));
+        ImageView icon = new ImageView(this); icon.setImageResource(R.drawable.app_icon); icon.setContentDescription("Cinespice icon"); brand.addView(icon, new LinearLayout.LayoutParams(Ui.dp(this, 32), Ui.dp(this, 32)));
+        TextView title = Ui.text(this, "  cinespice", 21, Ui.TEXT); title.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)); Ui.weighted(brand, title);
+        TextView badge = Ui.text(this, "YOUR CINEMA", 10, Ui.ACCENT); badge.setLetterSpacing(.12f); brand.addView(badge); root.addView(brand);
+        status = Ui.text(this, telegram.error, 13, Ui.ACCENT); status.setPadding(Ui.dp(this, 20), 0, Ui.dp(this, 20), 0); root.addView(status);
         if (!telegram.stage.equals("ready")) { auth(); return; }
         if (artworkSession != telegram.generation) {
             if (artwork != null) artwork.close();
             artwork = new Artwork(telegram, new File(getCacheDir(), "artwork_" + telegram.requireLibrary().accountId)); artworkSession = telegram.generation;
         }
-        LinearLayout nav = Ui.row(this);
-        Ui.weighted(nav, Ui.button(this, "Library", () -> navigate("home")));
-        Ui.weighted(nav, Ui.button(this, "My channels", () -> navigate("sources")));
-        Ui.weighted(nav, Ui.button(this, "Settings", () -> navigate("settings"))); root.addView(nav);
-        if (busy) { ProgressBar progress = new ProgressBar(this); root.addView(progress); }
-        ScrollView scroll = new ScrollView(this); body = Ui.column(this); body.setPadding(0, 0, 0, 0); scroll.addView(body); scroll.getViewTreeObserver().addOnScrollChangedListener(this::loadVisibleArtwork); scroll.post(this::loadVisibleArtwork); root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true); scroll.setClipToPadding(false);
+        body = Ui.column(this); scroll.addView(body); scroll.getViewTreeObserver().addOnScrollChangedListener(this::loadVisibleArtwork); scroll.post(this::loadVisibleArtwork); root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
         switch (page) {
-            case "sources" -> sources(); case "settings" -> settings();
+            case "sources", "addSources" -> sources(); case "settings" -> settings();
             case "collection" -> collection(); case "search" -> searchPage(); case "history" -> history(); default -> home();
         }
+        BottomNavigationView nav = new BottomNavigationView(this); nav.setBackgroundColor(Ui.BG);
+        nav.getMenu().add(0, 1, 0, "Library").setIcon(R.drawable.nav_library);
+        nav.getMenu().add(0, 2, 1, "My channels").setIcon(R.drawable.nav_channels);
+        nav.getMenu().add(0, 3, 2, "Settings").setIcon(R.drawable.nav_settings);
+        nav.setSelectedItemId(page.equals("settings") ? 3 : isSourcesPage() ? 2 : 1);
+        nav.setOnItemSelectedListener(item -> { navigate(item.getItemId() == 2 ? "sources" : item.getItemId() == 3 ? "settings" : "home"); return true; });
+        root.addView(nav, new LinearLayout.LayoutParams(-1, -2));
+        ViewCompat.setOnApplyWindowInsetsListener(nav, (v, insets) -> { v.setPadding(0, 0, 0, 0); v.setVisibility(insets.isVisible(WindowInsetsCompat.Type.ime()) ? View.GONE : View.VISIBLE); return insets; });
     }
     private void auth() {
         ScrollView scroll = new ScrollView(this); LinearLayout form = Ui.column(this); scroll.addView(form); root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
-        form.addView(Ui.heading(this, "Your private video library"));
+        form.addView(Ui.text(this, "WATCH ON YOUR TERMS", 11, Ui.ACCENT));
+        form.addView(Ui.heading(this, "Your channels.\nYour cinema."));
         form.addView(Ui.text(this, "Connect your Telegram account. Browse videos from the channels and groups you choose, then watch with VLC.", 16, Ui.MUTED));
         String stage = telegram.stage;
         if (stage.equals("credentials")) {
             form.addView(Ui.text(this, "Get your own API ID and hash at my.telegram.org. These stay encrypted on this device.", 15, Ui.MUTED));
-            form.addView(Ui.button(this, "Get Telegram API credentials ↗", () -> startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://my.telegram.org")))));
+            form.addView(Ui.quiet(this, "Get Telegram API credentials ↗", () -> startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://my.telegram.org")))));
             EditText id = Ui.input(this, "API ID", InputType.TYPE_CLASS_NUMBER); id.setContentDescription("API ID"); form.addView(id);
             EditText hash = Ui.input(this, "API hash", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD); hash.setContentDescription("API hash"); form.addView(hash);
-            Button connect = Ui.button(this, "Connect Telegram", () -> { String apiId = id.getText().toString().trim(), apiHash = hash.getText().toString().trim(); run("Connecting…", () -> telegram.connect(apiId, apiHash), this::render); });
+            Button connect = Ui.primary(this, "Connect Telegram", () -> { String apiId = id.getText().toString().trim(), apiHash = hash.getText().toString().trim(); run("Connecting…", () -> telegram.connect(apiId, apiHash), this::render); });
             connect.setEnabled(!busy); form.addView(connect);
         } else if (Set.of("phone", "code", "password", "email", "emailCode").contains(stage)) {
             String label = switch (stage) { case "phone" -> "Phone number with country code"; case "code" -> "Telegram login code"; case "password" -> "Two-step verification password"; case "email" -> "Email address"; default -> "Email verification code"; };
@@ -95,7 +127,7 @@ public final class MainActivity extends Activity implements Telegram.Listener {
             int type = switch (stage) { case "phone" -> InputType.TYPE_CLASS_PHONE; case "code", "emailCode" -> InputType.TYPE_CLASS_NUMBER; case "password" -> InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD; case "email" -> InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS; default -> InputType.TYPE_CLASS_TEXT; };
             EditText value = Ui.input(this, label, type); value.setContentDescription(label); form.addView(value);
             if (stage.equals("code")) form.addView(Ui.text(this, "Check Telegram on your other devices for the sign-in code.", 14, Ui.MUTED));
-            Button next = Ui.button(this, "Continue", () -> {
+            Button next = Ui.primary(this, "Continue", () -> {
                 if (value.getText().toString().isBlank()) { status.setText("Enter " + label.toLowerCase(Locale.ROOT)); return; }
                 String authenticationValue = value.getText().toString();
                 run("Checking with Telegram…", () -> telegram.authenticate(authenticationValue), () -> status.setText("Waiting for Telegram…"));
@@ -104,51 +136,118 @@ public final class MainActivity extends Activity implements Telegram.Listener {
         form.addView(Ui.text(this, "No backend, subscriptions, or analytics. Your account session and library are stored locally.", 14, Ui.MUTED));
     }
     private void navigate(String destination) {
-        if (busy || opening != null) return;
+        if (opening != null) return;
+        hideKeyboard();
         page = destination; displayLimit = 150; query = ""; search = null; more = true; render();
-        if (destination.equals("sources")) discoverMore();
+        if (destination.equals("addSources")) discoverMore();
     }
+    private boolean isSourcesPage() { return page.equals("sources") || page.equals("addSources"); }
+    private void hideKeyboard() { WindowCompat.getInsetsController(getWindow(), root).hide(WindowInsetsCompat.Type.ime()); root.requestFocus(); }
     private void discoverMore() {
-        run("Finding channels and groups…", () -> more = telegram.discover(), () -> {
-            render();
-            if (more) timer.postDelayed(() -> { if (alive && page.equals("sources") && !busy && telegram.stage.equals("ready")) discoverMore(); }, 400);
+        if (discovering || !discoveryMore || !telegram.stage.equals("ready")) return;
+        discovering = true; refreshChannelProgress(); final long session = telegram.generation;
+        telegram.io.execute(() -> {
+            boolean next = true; String error = null;
+            try { next = telegram.discover(); } catch (Exception e) { error = e.getMessage(); }
+            final boolean hasMore = next; final String failure = error;
+            runOnUiThread(() -> {
+                if (isDestroyed() || session != telegram.generation) return;
+                discovering = false; discoveryMore = hasMore;
+                if (isSourcesPage()) { refreshChannelChoices(); refreshChannelProgress(); if (failure != null) status.setText(failure + " · Tap Refresh to retry."); }
+                if (failure == null && hasMore && alive && page.equals("addSources")) timer.postDelayed(() -> { if (alive && page.equals("addSources")) discoverMore(); }, 400);
+            });
         });
     }
     private void home() {
+        body.addView(Ui.text(this, "MAKE TIME FOR A GOOD FILM", 11, Ui.ACCENT));
         body.addView(Ui.heading(this, "Your library"));
-        body.addView(Ui.button(this, "Search selected channels", () -> { if (!busy) { page = "search"; chat = 0; render(); } }));
-        body.addView(Ui.button(this, "Continue watching", () -> navigate("history")));
+        body.addView(Ui.text(this, "Everything you love, in one place.", 16, Ui.MUTED));
+        LinearLayout hero = Ui.column(this); hero.setBackground(Ui.card(this));
+        hero.addView(Ui.text(this, "What are we watching?", 20, Ui.TEXT));
+        hero.addView(Ui.text(this, "Find a video across the channels you've chosen.", 14, Ui.MUTED));
+        hero.addView(Ui.primary(this, "Search videos", () -> { page = "search"; chat = 0; render(); })); body.addView(hero);
+        body.addView(Ui.quiet(this, "Continue watching  →", () -> navigate("history")));
+        body.addView(Ui.text(this, "YOUR CHANNELS", 12, Ui.MUTED));
         List<Library.Chat> chats = telegram.requireLibrary().chats(true);
-        if (chats.isEmpty()) body.addView(Ui.text(this, "Choose channels and groups in My channels to start your library.", 17, Ui.MUTED));
-        for (Library.Chat source : chats) body.addView(Ui.button(this, source.title() + "  →", () -> {
-            if (busy) return;
-            chat = source.id(); chatTitle = source.title(); page = "collection"; more = true; displayLimit = 150;
-            render(); run("Loading videos…", () -> more = telegram.page(chat, true), this::render);
-        }));
+        if (chats.isEmpty()) { emptyState(body, "Build your collection", "Add your favorite channels and groups to start watching."); body.addView(Ui.primary(this, "Add channels", () -> navigate("addSources"))); }
+        for (Library.Chat source : chats) body.addView(channelRow(source, false));
+    }
+    private void emptyState(LinearLayout target, String title, String subtitle) {
+        LinearLayout card = Ui.column(this); card.setBackground(Ui.card(this));
+        card.addView(Ui.text(this, title, 20, Ui.TEXT)); card.addView(Ui.text(this, subtitle, 14, Ui.MUTED)); target.addView(card);
+    }
+    private View channelRow(Library.Chat source, boolean selectable) {
+        LinearLayout row = Ui.row(this); row.setPadding(Ui.dp(this, 12), Ui.dp(this, 8), Ui.dp(this, 8), Ui.dp(this, 8)); row.setBackground(Ui.card(this)); row.setMinimumHeight(Ui.dp(this, 76));
+        LinearLayout.LayoutParams spacing = new LinearLayout.LayoutParams(-1, -2); spacing.setMargins(0, Ui.dp(this, 4), 0, Ui.dp(this, 4)); row.setLayoutParams(spacing);
+        TextView avatar = Ui.text(this, source.title().isEmpty() ? "#" : source.title().substring(0, source.title().offsetByCodePoints(0, 1)).toUpperCase(Locale.ROOT), 20, Ui.ACCENT); avatar.setGravity(Gravity.CENTER); avatar.setBackground(Ui.card(this)); row.addView(avatar, new LinearLayout.LayoutParams(Ui.dp(this, 44), Ui.dp(this, 44)));
+        LinearLayout label = Ui.column(this); label.setPadding(Ui.dp(this, 12), 0, Ui.dp(this, 4), 0);
+        TextView title = Ui.text(this, source.title(), 16, Ui.TEXT); title.setMaxLines(2); title.setEllipsize(android.text.TextUtils.TruncateAt.END); label.addView(title);
+        label.addView(Ui.text(this, selectable ? source.selected() ? "In your library" : "Available to add" : "Browse videos", 12, Ui.MUTED)); Ui.weighted(row, label);
+        if (selectable) {
+            MaterialButton add = Ui.button(this, source.selected() ? "Added ✓" : "Add", () -> { telegram.requireLibrary().select(source.id(), !source.selected()); refreshChannelChoices(); });
+            add.setContentDescription((source.selected() ? "Remove " : "Add ") + source.title()); row.addView(add);
+        } else {
+            MaterialButton moreButton = Ui.quiet(this, "•••", () -> new AlertDialog.Builder(this).setTitle(source.title()).setItems(new String[]{"Open channel", "Remove from My channels"}, (d, which) -> {
+                if (which == 0) openChannel(source); else { telegram.requireLibrary().select(source.id(), false); if (page.equals("sources")) refreshChannelChoices(); else render(); }
+            }).show()); moreButton.setContentDescription("Options for " + source.title()); row.addView(moreButton);
+            row.setOnClickListener(v -> openChannel(source)); row.setContentDescription("Open " + source.title());
+        }
+        return row;
+    }
+    private void openChannel(Library.Chat source) {
+        if (busy) return; hideKeyboard();
+        chat = source.id(); chatTitle = source.title(); page = "collection"; more = true; displayLimit = 150;
+        render(); final long id = chat;
+        run("Loading videos…", () -> more = telegram.page(id, true), () -> { if (page.equals("collection") && chat == id) render(); });
     }
     private void sources() {
-        body.addView(Ui.heading(this, "My channels"));
-        body.addView(Ui.text(this, "Select channels and groups to include. Personal chats and Saved Messages are excluded.", 15, Ui.MUTED));
-        EditText filter = Ui.input(this, "Find a channel or group", InputType.TYPE_CLASS_TEXT); body.addView(filter);
-        body.addView(Ui.button(this, "Search Telegram", () -> {
-            String text = filter.getText().toString().trim(); if (text.isEmpty()) return;
-            run("Searching channels…", () -> telegram.searchChats(text), this::render);
-        }));
-        LinearLayout choices = Ui.column(this); body.addView(choices);
-        List<Library.Chat> sources = telegram.requireLibrary().chats(false);
-        Runnable show = () -> {
-            choices.removeAllViews(); String text = filter.getText().toString().toLowerCase(Locale.ROOT);
-            for (Library.Chat source : sources) {
-                if (!source.title().toLowerCase(Locale.ROOT).contains(text)) continue;
-                CheckBox toggle = new CheckBox(this); toggle.setText(source.title()); toggle.setTextColor(Ui.TEXT); toggle.setMinHeight(Ui.dp(this, 48)); toggle.setChecked(source.selected());
-                toggle.setOnCheckedChangeListener((button, checked) -> telegram.requireLibrary().select(source.id(), checked)); choices.addView(toggle);
-            }
-        }; show.run();
-        filter.addTextChangedListener(new android.text.TextWatcher() {
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {} public void onTextChanged(CharSequence s, int start, int before, int count) { show.run(); } public void afterTextChanged(android.text.Editable text) {}
+        boolean adding = page.equals("addSources");
+        if (adding) body.addView(Ui.quiet(this, "‹  My channels", () -> navigate("sources")));
+        body.addView(Ui.heading(this, adding ? "Add channels" : "My channels"));
+        body.addView(Ui.text(this, adding ? "Choose what belongs in your library." : "Only the channels and groups you've added.", 15, Ui.MUTED));
+        if (!adding) body.addView(Ui.primary(this, "+  Add channels", () -> navigate("addSources")));
+        channelFilter = Ui.input(this, adding ? "Search channels and groups" : "Search my channels", InputType.TYPE_CLASS_TEXT); channelFilter.setId(R.id.channel_search); channelFilter.setImeOptions(EditorInfo.IME_ACTION_SEARCH); channelFilter.setText(channelQuery); body.addView(channelFilter);
+        channelFilter.addTextChangedListener(watcher(() -> { channelQuery = channelFilter.getText().toString(); refreshChannelChoices(); }));
+        if (adding) {
+            body.addView(Ui.button(this, "Search Telegram", this::searchChannels));
+            channelFilter.setOnEditorActionListener((v, action, event) -> { if (action == EditorInfo.IME_ACTION_SEARCH) { searchChannels(); return true; } return false; });
+        }
+        channelProgress = new LinearProgressIndicator(this); channelProgress.setId(R.id.channel_progress); channelProgress.setIndeterminate(true); body.addView(channelProgress, new LinearLayout.LayoutParams(-1, Ui.dp(this, 4)));
+        channelSummary = Ui.text(this, "", 12, Ui.MUTED); body.addView(channelSummary);
+        channelChoices = Ui.column(this); channelChoices.setPadding(0, 0, 0, 0); channelChoices.setId(R.id.channel_choices); body.addView(channelChoices);
+        channelRetry = Ui.quiet(this, "Refresh channels", () -> { discoveryMore = true; discoverMore(); }); body.addView(channelRetry);
+        refreshChannelChoices(); refreshChannelProgress();
+    }
+    static TextWatcher watcher(Runnable change) { return new TextWatcher() { public void beforeTextChanged(CharSequence s, int start, int count, int after) {} public void onTextChanged(CharSequence s, int start, int before, int count) { change.run(); } public void afterTextChanged(Editable text) {} }; }
+    // Update results only. Never replace the field while discovery or search completes.
+    void refreshChannelChoices() {
+        if (channelChoices == null || !isSourcesPage()) return;
+        channelChoices.removeAllViews(); boolean adding = page.equals("addSources");
+        String filter = channelQuery.trim().toLowerCase(Locale.ROOT); int count = 0;
+        for (Library.Chat source : telegram.requireLibrary().chats(!adding)) {
+            if (!source.title().toLowerCase(Locale.ROOT).contains(filter)) continue;
+            channelChoices.addView(channelRow(source, adding)); count++;
+        }
+        channelSummary.setText(count + (adding ? " available" : " in your library"));
+        if (count == 0) emptyState(channelChoices, filter.isEmpty() ? adding ? "Find your favorites" : "Your library starts here" : "No matching channels", adding ? "Search Telegram or refresh to find your channels and groups." : "Tap Add channels to choose what appears here.");
+    }
+    private void refreshChannelProgress() {
+        if (!isSourcesPage() || channelProgress == null) return;
+        channelProgress.setVisibility(page.equals("addSources") && (discovering || channelSearching) ? View.VISIBLE : View.GONE);
+        channelRetry.setVisibility(page.equals("addSources") ? View.VISIBLE : View.GONE); channelRetry.setEnabled(!discovering);
+    }
+    private void searchChannels() {
+        String text = channelQuery.trim(); if (text.isEmpty() || channelSearching) return;
+        channelSearching = true; refreshChannelProgress(); final long session = telegram.generation, request = ++sourceRequest;
+        telegram.io.execute(() -> {
+            String failure = null; try { telegram.searchChats(text); } catch (Exception e) { failure = e.getMessage(); }
+            final String error = failure;
+            runOnUiThread(() -> {
+                if (isDestroyed() || session != telegram.generation || request != sourceRequest) return;
+                channelSearching = false;
+                if (isSourcesPage()) { refreshChannelChoices(); refreshChannelProgress(); status.setText(error == null ? "" : error + " · Try again."); }
+            });
         });
-        if (more) body.addView(Ui.button(this, "Find more channels / Retry", () -> run("Finding more channels…", () -> more = telegram.discover(), this::render)));
-        else body.addView(Ui.text(this, "All available sources loaded.", 14, Ui.MUTED));
     }
     private void collection() {
         body.addView(Ui.heading(this, chatTitle));
@@ -159,26 +258,32 @@ public final class MainActivity extends Activity implements Telegram.Listener {
     }
     private void searchPage() {
         body.addView(Ui.heading(this, "Search videos"));
-        EditText text = Ui.input(this, "Title or filename", InputType.TYPE_CLASS_TEXT); text.setText(query); body.addView(text);
-        body.addView(Ui.button(this, "Search", () -> {
+        EditText text = Ui.input(this, "Title or filename", InputType.TYPE_CLASS_TEXT); text.setId(R.id.video_search); text.setImeOptions(EditorInfo.IME_ACTION_SEARCH); text.setText(videoDraft); text.addTextChangedListener(watcher(() -> videoDraft = text.getText().toString())); body.addView(text);
+        Runnable submit = () -> {
             if (busy) return;
-            query = text.getText().toString().trim(); if (query.isEmpty()) return;
+            query = videoDraft.trim(); if (query.isEmpty()) return; hideKeyboard();
             search = new SearchSession(telegram, telegram.requireLibrary().chats(true), query); displayLimit = 150;
-            run("Searching selected sources…", () -> more = search.next(), this::render);
-        }));
+            SearchSession current = search; run("Searching selected sources…", () -> more = current.next(), () -> { if (page.equals("search") && search == current) refreshVideoResults(); });
+        };
+        body.addView(Ui.primary(this, "Search", submit));
+        text.setOnEditorActionListener((v, action, event) -> { if (action == EditorInfo.IME_ACTION_SEARCH) { submit.run(); return true; } return false; });
+        videoResults = Ui.column(this); videoResults.setPadding(0, 0, 0, 0); body.addView(videoResults); refreshVideoResults();
+    }
+    private void refreshVideoResults() {
+        videoResults.removeAllViews(); downloadLabels.clear(); artworkViews.clear();
         if (!query.isEmpty()) {
             Map<String, Video> combined = new LinkedHashMap<>();
             for (Video video : telegram.requireLibrary().videos(0, query, false, displayLimit)) combined.put(video.key(), video);
             if (search != null) for (Video video : search.results.values()) combined.put(video.key(), video);
-            showVideos(new ArrayList<>(combined.values()));
-            if (search != null && more) body.addView(Ui.button(this, "Search more / Retry", () -> run("Searching more…", () -> { more = search.next(); displayLimit += 150; }, this::render)));
+            LinearLayout savedBody = body; body = videoResults; showVideos(new ArrayList<>(combined.values())); body = savedBody;
+            if (search != null && more) videoResults.addView(Ui.button(this, "Search more / Retry", () -> { SearchSession current = search; run("Searching more…", () -> { more = current.next(); displayLimit += 150; }, () -> { if (page.equals("search") && search == current) refreshVideoResults(); }); }));
         }
     }
     private void history() { body.addView(Ui.heading(this, "Continue watching")); showVideos(telegram.requireLibrary().videos(0, "", true, displayLimit)); }
     private void showVideos(List<Video> videos) {
         if (videos.isEmpty()) body.addView(Ui.text(this, "No videos here yet. Load another page or choose more sources.", 16, Ui.MUTED));
         for (Video video : videos) {
-            LinearLayout card = Ui.column(this); card.setBackground(Ui.card());
+            LinearLayout card = Ui.column(this); card.setBackground(Ui.card(this));
             LinearLayout.LayoutParams spacing = new LinearLayout.LayoutParams(-1, -2); spacing.setMargins(0, Ui.dp(this, 8), 0, Ui.dp(this, 8)); body.addView(card, spacing);
             LinearLayout row = Ui.row(this);
             ImageView image = new ImageView(this); image.setScaleType(ImageView.ScaleType.CENTER_CROP); image.setContentDescription("Video thumbnail");
@@ -193,8 +298,8 @@ public final class MainActivity extends Activity implements Telegram.Listener {
             TextView detail = Ui.text(this, details(video), 13, Ui.MUTED); card.addView(detail); downloadLabels.put(detail, video);
             long position = telegram.requireLibrary().position(video.key());
             LinearLayout actions = Ui.row(this);
-            Ui.weighted(actions, Ui.button(this, position >= 5000 ? "Resume" : "Play", () -> open(video, true)));
-            Ui.weighted(actions, Ui.button(this, "More", () -> videoMenu(video))); card.addView(actions);
+            Ui.weighted(actions, Ui.primary(this, position >= 5000 ? "Resume" : "Play", () -> open(video, true)));
+            Ui.weighted(actions, Ui.quiet(this, "More", () -> videoMenu(video))); card.addView(actions);
         }
     }
     private void loadVisibleArtwork() {
@@ -256,14 +361,14 @@ public final class MainActivity extends Activity implements Telegram.Listener {
     private void cancelOpen() { if (openingDialog != null) { openingDialog.dismiss(); openingDialog = null; } openingToken++; if (opening != null) { opening.cancel(true); opening = null; } }
     private void settings() {
         body.addView(Ui.heading(this, "Settings"));
-        body.addView(Ui.text(this, "Cinespice for Android · 1.0\nTelegram + VLC\nDownloads and playback pause or stop when Android closes the app. Keep it open for downloads.", 16, Ui.MUTED));
+        body.addView(Ui.text(this, "Cinespice for Android · 1.1\nTelegram + VLC\nDownloads and playback pause or stop when Android closes the app. Keep it open for downloads.", 16, Ui.MUTED));
         body.addView(Ui.button(this, "Clear downloaded videos", () -> confirm("Clear downloaded media?", () -> run("Clearing downloads…", telegram::clearDownloads, () -> status.setText("Downloaded media cleared.")))));
         body.addView(Ui.button(this, "Clear artwork cache", () -> run("Clearing artwork…", () -> telegram.request(Json.obj("@type", "optimizeStorage", "size", 0, "ttl", 0, "count", 0, "immunity_delay", 0, "file_types", new org.json.JSONArray().put(Json.obj("@type", "fileTypeThumbnail")))), () -> { if (artwork != null) artwork.clear(); status.setText("Artwork cache cleared."); })));
         body.addView(Ui.button(this, "Clear watch history", () -> confirm("Clear watch history?", () -> { telegram.requireLibrary().clearHistory(); status.setText("History cleared."); })));
         body.addView(Ui.button(this, "Sign out of Telegram", () -> confirm("Sign out of Telegram?", () -> run("Signing out…", () -> telegram.request(Json.obj("@type", "logOut")), this::render))));
         body.addView(Ui.button(this, "Open source notices", () -> {
-            StringBuilder notices = new StringBuilder("TDLib 1.8.65 · up9cloud Android JNI (MIT)\nlibVLC Android 3.6.5 · LGPL 2.1 or later\n\nSources: github.com/tdlib/td, github.com/up9cloud/android-libtdjson, code.videolan.org/videolan/vlc-android/-/tree/3.6.5\nNative libraries are unmodified. Android app source and build scripts are in the Cinespice repository. LGPL permits debugging modifications to its components.\n\n");
-            for (String name : new String[]{"TDLib.txt", "TDLib-JNI.txt", "libVLC.txt"}) {
+            StringBuilder notices = new StringBuilder("TDLib 1.8.65 · up9cloud Android JNI (MIT)\nlibVLC Android 3.6.5 · LGPL 2.1 or later\nMaterial Components 1.12.0 and AndroidX AppCompat 1.7.0 · Apache 2.0\n\nSources: github.com/tdlib/td, github.com/up9cloud/android-libtdjson, code.videolan.org/videolan/vlc-android/-/tree/3.6.5\nNative libraries are unmodified. Android app source and build scripts are in the Cinespice repository. LGPL permits debugging modifications to its components.\n\n");
+            for (String name : new String[]{"TDLib.txt", "TDLib-JNI.txt", "libVLC.txt", "Apache-2.0.txt"}) {
                 try (InputStream input = getAssets().open("licenses/" + name); java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
                     byte[] bytes = new byte[4096]; int count; while ((count = input.read(bytes)) != -1) out.write(bytes, 0, count);
                     notices.append(name).append("\n").append(out.toString("UTF-8")).append("\n\n");
@@ -276,7 +381,7 @@ public final class MainActivity extends Activity implements Telegram.Listener {
     private void confirm(String title, Runnable action) { new AlertDialog.Builder(this).setTitle(title).setNegativeButton("Cancel", null).setPositiveButton("Continue", (d, w) -> action.run()).show(); }
     interface Work { void execute() throws Exception; }
     private void run(String message, Work work, Runnable done) {
-        if (busy) return; busy = true; status.setText(message);
+        if (busy) return; busy = true; status.setText(message); final LinearLayout startedRoot = root;
         telegram.io.execute(() -> {
             String failure = null;
             try { work.execute(); } catch (Exception e) { failure = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage(); }
@@ -285,7 +390,7 @@ public final class MainActivity extends Activity implements Telegram.Listener {
                 busy = false;
                 if (isDestroyed() || isFinishing()) return;
                 if (result != null) status.setText(result + " · Try again.");
-                else { telegram.error = ""; status.setText(""); done.run(); }
+                else { telegram.error = ""; status.setText(""); if (root == startedRoot) done.run(); }
             });
         });
     }
@@ -301,5 +406,10 @@ public final class MainActivity extends Activity implements Telegram.Listener {
             }, () -> status.setText("Video saved."));
         }
     }
-    @Override public void onBackPressed() { if (!page.equals("home") && telegram.stage.equals("ready") && !busy) navigate("home"); else super.onBackPressed(); }
+    private void handleBack() {
+        WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(root);
+        if (insets != null && insets.isVisible(WindowInsetsCompat.Type.ime())) { hideKeyboard(); return; }
+        if (page.equals("addSources")) navigate("sources");
+        else if (!page.equals("home") && telegram.stage.equals("ready")) navigate("home"); else finish();
+    }
 }

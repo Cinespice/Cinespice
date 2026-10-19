@@ -15,7 +15,7 @@ import org.videolan.libvlc.util.VLCVideoLayout;
 import java.io.*;
 import java.util.*;
 
-public final class PlayerActivity extends Activity {
+public final class PlayerActivity extends androidx.appcompat.app.AppCompatActivity {
     private Telegram telegram;
     private Library library;
     private Video video;
@@ -81,7 +81,7 @@ public final class PlayerActivity extends Activity {
         }); root.requestApplyInsets();
         controls = Ui.column(this); controls.setBackgroundColor(0x99000000);
         LinearLayout top = Ui.row(this);
-        top.addView(Ui.button(this, "Close", this::finish)); TextView name = Ui.text(this, video.name, 15, Ui.TEXT); name.setMaxLines(2); Ui.weighted(top, name); controls.addView(top);
+        top.addView(Ui.quiet(this, "Close", this::finish)); TextView name = Ui.text(this, video.name, 15, Ui.TEXT); name.setMaxLines(2); Ui.weighted(top, name); controls.addView(top);
         LinearLayout spacer = new LinearLayout(this); controls.addView(spacer, new LinearLayout.LayoutParams(-1, 0, 1));
         message = Ui.text(this, "Opening in VLC…", 17, Ui.ACCENT); controls.addView(message);
         spinner = new ProgressBar(this); controls.addView(spinner, new LinearLayout.LayoutParams(Ui.dp(this, 32), Ui.dp(this, 32)));
@@ -94,7 +94,7 @@ public final class PlayerActivity extends Activity {
         });
         LinearLayout transport = Ui.row(this);
         Ui.weighted(transport, Ui.button(this, "−10s", () -> skip(-10000)));
-        play = Ui.button(this, "Pause", () -> { if (player != null) { if (player.isPlaying()) { player.pause(); save(); } else player.play(); reveal(); } }); Ui.weighted(transport, play);
+        play = Ui.primary(this, "Pause", () -> { if (player != null) { if (player.isPlaying()) { player.pause(); save(); } else player.play(); reveal(); } }); Ui.weighted(transport, play);
         Ui.weighted(transport, Ui.button(this, "+10s", () -> skip(10000))); controls.addView(transport);
         HorizontalScrollView menuScroll = new HorizontalScrollView(this); LinearLayout menu = Ui.row(this); menuScroll.addView(menu); controls.addView(menuScroll);
         menu.addView(Ui.button(this, "Audio", () -> tracks(false)));
@@ -108,7 +108,7 @@ public final class PlayerActivity extends Activity {
             if (bridge != null) { bridge.close(); bridge = null; }
             telegram.io.execute(() -> { try { telegram.download(video); runOnUiThread(() -> { Toast.makeText(this, "Downloading. Reopen the video after download completes.", Toast.LENGTH_LONG).show(); finish(); }); } catch (Exception e) { runOnUiThread(() -> message.setText(e.getMessage())); } });
         }));
-        unlock = Ui.button(this, "Unlock", () -> { locked = false; unlock.setVisibility(View.GONE); reveal(); }); unlock.setVisibility(View.GONE);
+        unlock = Ui.primary(this, "Unlock", () -> { locked = false; unlock.setVisibility(View.GONE); reveal(); }); unlock.setVisibility(View.GONE);
     }
     private void start() throws Exception {
         ArrayList<String> options = new ArrayList<>(List.of("--network-caching=1500", "--no-video-title-show", "--freetype-rel-fontsize=" + getPreferences(0).getInt("subtitleSize", 16)));

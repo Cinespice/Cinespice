@@ -16,10 +16,13 @@
   includes the Android application source and its Gradle build so users can rebuild
   and replace the linked player libraries. Reverse engineering for debugging
   modifications to LGPL components is permitted by their license.
+- **Material Components 1.12.0** and **AndroidX AppCompat 1.7.0**, Apache 2.0.
+  https://github.com/material-components/material-components-android and
+  https://android.googlesource.com/platform/frameworks/support/.
 - AndroidX test tools and JDK desugaring support are Apache 2.0.
   https://github.com/android/android-test and https://github.com/google/desugar_jdk_libs.
 - Gradle wrapper: Apache 2.0, https://github.com/gradle/gradle/tree/v8.9.0.
 
-The TDLib, JNI wrapper, and LGPL texts are bundled in the app's
+The TDLib, JNI wrapper, LGPL, and Apache 2.0 texts are bundled in the app's
 `assets/licenses/` directory and readable from Settings → Open source notices.
 The Cinespice icon is reused from this repository's committed iOS assets.
