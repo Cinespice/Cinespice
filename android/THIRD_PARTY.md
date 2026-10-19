@@ -4,7 +4,7 @@
   Android binaries and JNI entry points are from
   https://github.com/up9cloud/android-libtdjson/releases/tag/v1.8.65.
   JNI wrapper/build scripts: MIT, copyright Chia-Hsueh Huang (see bundled license).
-  `prepare-tdlib.sh` pins the archive SHA-256. The native libraries are unmodified.
+  `prepare-tdlib.sh` pins the archive SHA-256. Native sources are unmodified; packaging removes native debug symbols.
   Upstream Android build recipe: https://github.com/up9cloud/android-libtdjson/tree/v1.8.65.
 - **libVLC Android 3.6.5**, `org.videolan.android:libvlc-all:3.6.5`, LGPL 2.1 or later.
   https://code.videolan.org/videolan/libvlc-android and https://www.videolan.org/vlc/libvlc.html.
@@ -16,7 +16,8 @@
   includes the Android application source and its Gradle build so users can rebuild
   and replace the linked player libraries. Reverse engineering for debugging
   modifications to LGPL components is permitted by their license.
-- **Material Components 1.12.0** and **AndroidX AppCompat 1.7.0**, Apache 2.0.
+- **Material Components 1.12.0**, **AndroidX AppCompat 1.7.0**, and
+  **AndroidX Tracing 1.1.0**, Apache 2.0.
   https://github.com/material-components/material-components-android and
   https://android.googlesource.com/platform/frameworks/support/.
 - AndroidX test tools and JDK desugaring support are Apache 2.0.

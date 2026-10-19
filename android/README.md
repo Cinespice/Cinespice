@@ -6,8 +6,10 @@ The iOS project remains at the repository root; the Android project is self-cont
 
 ## Install
 
-Use `Cinespice-arm64-v8a.apk` for most modern phones/tablets. Use the
-`armeabi-v7a` APK for older 32-bit ARM devices, or `x86_64` for an emulator.
+In GitHub Actions download **Cinespice-Android-arm64-v8a** for most modern
+phones/tablets, **Cinespice-Android-armeabi-v7a** for older 32-bit ARM devices,
+or **Cinespice-Android-x86_64** for an emulator. Extract the artifact ZIP and
+install its `app-<architecture>-optimized.apk`.
 These are separate complete APKs; install only the one matching your device.
 Allow your browser/file manager to install unknown apps when Android prompts.
 Open Cinespice, enter your own API ID/hash from https://my.telegram.org, and sign
@@ -33,13 +35,13 @@ The Gradle distribution and TDLib archive have pinned SHA-256 checksums.
 ```bash
 export ANDROID_HOME=/path/to/android/sdk
 # With Google's SDK command-line tools:
-sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'platform-tools'
+sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'platform-tools' 'ndk;27.2.12479018'
 ./prepare-tdlib.sh
-./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
+./gradlew :app:testDebugUnitTest :app:lintOptimized :app:assembleOptimized
 ```
 
-Find signed installable APKs in `app/build/outputs/apk/debug/`.
-Use `adb install -r app/build/outputs/apk/debug/app-arm64-v8a-debug.apk` for a
+Find optimized signed installable APKs in `app/build/outputs/apk/optimized/`.
+Use `adb install -r app/build/outputs/apk/optimized/app-arm64-v8a-optimized.apk` for a
 connected ARM64 device. `./gradlew :app:connectedDebugAndroidTest` additionally
 runs the channel selection, search focus/keyboard/recreation, storage, JNI,
 HTTP range transfer, and local VLC playback checks on a
@@ -47,11 +49,31 @@ connected Android device/emulator. Test fixtures are synthetic; no account
 credentials are required for those tests.
 
 GitHub Actions → **Build Cinespice Android APK** builds all three APKs and uploads
-**Cinespice-Android-APKs**. This workflow also runs on Android branch pushes and
-pull requests affecting this project. CI configuration needs to be published
-before GitHub can run it.
+one artifact per architecture. Download only the one matching your device.
+The previous combined artifact was about 114 MiB because it contained all three
+APKs; that was not the size of a single installed package. This workflow also
+runs on Android branch pushes and pull requests affecting this project.
 
-`./gradlew :app:assembleRelease` creates unsigned release APKs. Sign them using
+Measured APK download sizes for version 1.1.1 (not installed storage):
+
+| Architecture | Previous debug APK | Optimized APK |
+| --- | ---: | ---: |
+| ARM64 | 39.8 MiB | 32.4 MiB |
+| ARMv7 | 35.6 MiB | 30.9 MiB |
+| x86_64 | 42.1 MiB | 34.1 MiB |
+
+
+The `optimized` build uses R8 code optimization, resource shrinking, and NDK
+27.2.12479018 native symbol stripping. JNI entry points for TDLib and libVLC are
+preserved. The full Telegram engine and VLC codecs remain available. The
+`debug` build remains available with `./gradlew :app:assembleDebug`. To run
+device checks against the optimized build use:
+
+```bash
+./gradlew -PdeviceTestBuildType=optimized :app:connectedOptimizedAndroidTest
+```
+
+`./gradlew :app:assembleRelease` creates optimized unsigned release APKs. Sign them using
 your own keystore and `apksigner`, then verify with `apksigner verify`.
 Never commit a keystore or its passwords. See [third party notices](THIRD_PARTY.md)
 for dependency sources and licenses before distributing.

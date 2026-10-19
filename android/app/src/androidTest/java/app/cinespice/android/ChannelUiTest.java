@@ -7,8 +7,6 @@ import android.os.SystemClock;
 import android.view.*;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.*;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -116,7 +114,14 @@ public class ChannelUiTest {
     private void waitForKeyboard(boolean expected) {
         AtomicBoolean visible = new AtomicBoolean(); long end = SystemClock.elapsedRealtime() + 8000;
         do {
-            scenario.onActivity(activity -> { WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(activity.getWindow().getDecorView()); visible.set(insets != null && insets.isVisible(WindowInsetsCompat.Type.ime())); });
+            scenario.onActivity(activity -> {
+                // Use the platform here: shared AndroidX helpers can be inlined
+                // out of the separately minified target APK.
+                View decor = activity.getWindow().getDecorView();
+                WindowInsets insets = decor.getRootWindowInsets();
+                if (android.os.Build.VERSION.SDK_INT >= 30) visible.set(insets != null && insets.isVisible(WindowInsets.Type.ime()));
+                else visible.set(insets != null && insets.getSystemWindowInsetBottom() > 100 * decor.getResources().getDisplayMetrics().density);
+            });
             if (visible.get() == expected) return; SystemClock.sleep(100);
         } while (SystemClock.elapsedRealtime() < end);
         assertEquals("Keyboard visibility", expected, visible.get());

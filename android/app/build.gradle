@@ -4,17 +4,32 @@ android {
     namespace 'app.cinespice.android'
     compileSdk 35
     buildToolsVersion '35.0.0'
+    // Used by AGP to remove native debug symbols from packaged libraries.
+    ndkVersion '27.2.12479018'
     defaultConfig {
         applicationId 'app.cinespice.android'
         minSdk 26
         targetSdk 35
-        versionCode 2
-        versionName '1.1'
+        versionCode 3
+        versionName '1.1.1'
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
     }
     compileOptions { coreLibraryDesugaringEnabled true; sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
-    // A signed debug APK is directly installable. Production release keys stay outside Git.
-    buildTypes { release { minifyEnabled false } }
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        // Same optimizations as release, signed for direct installation from Actions.
+        // Production release keys stay outside Git.
+        optimized {
+            initWith release
+            signingConfig signingConfigs.debug
+            matchingFallbacks = ['release']
+        }
+    }
+    testBuildType providers.gradleProperty('deviceTestBuildType').getOrElse('debug')
     splits {
         abi { enable true; reset(); include 'arm64-v8a', 'armeabi-v7a', 'x86_64'; universalApk false }
     }
@@ -25,6 +40,8 @@ dependencies {
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'
     implementation 'com.google.android.material:material:1.12.0'
     implementation 'androidx.appcompat:appcompat:1.7.0'
+    // Keep the shared tracing API consistent with the instrumentation runner.
+    implementation 'androidx.tracing:tracing:1.1.0'
     implementation 'org.videolan.android:libvlc-all:3.6.5'
     androidTestImplementation 'androidx.test:runner:1.6.2'
     androidTestImplementation 'androidx.test:core:1.6.1'
