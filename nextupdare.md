@@ -75,3 +75,23 @@ Before expanding the catalogue, verify on the actual signed app:
   file and confirm the choice persists. Test external SRT and styled/bitmap tracks.
 - Test compact iPhone, landscape with camera cutout, iPad and larger accessibility
   text sizes. Confirm menus scroll and the close button remains reachable.
+
+## UI follow-ups after the October redesign
+
+Implemented now: two persistent saved lists, four themes, filename-year sorting,
+Downloads page, compact navigation/player panels, seven hero positions. See
+[UI specification](docs/UI-README.md) and [Android guide](docs/ANDROID-UI.md).
+
+Next, after native/device acceptance:
+
+- Connect a verified catalogue trending feed for the four reserved hero slots.
+  OMDb metadata alone must not be assumed to provide a trending feed.
+- Resolve catalogue dates over filename hints; expose corrections for ambiguous
+  years/title matches. Persist last-search recommendations only if desired.
+- Consider custom named lists and optional automatic removal from Watchlist after
+  completion; current Favorites/Watchlist remain independent of watching history.
+- Define Request feature destination and privacy before adding actual submission.
+- Reconcile interrupted download queues after relaunch; investigate supported
+  background execution before promising background downloads.
+- Adopt native Liquid Glass APIs only with an updated, verified SDK and deployment
+  fallbacks; retain readable nontransparent rendering for accessibility.

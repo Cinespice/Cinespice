@@ -80,7 +80,7 @@ progress and track state updates redraw the controls.
 
 A play tap immediately shows a blocking, cancellable Loading media card. Duplicate
 taps cannot initiate another player. Cancel invalidates the opening token; an old
-request completing late cannot open a video. After presentation, Opening in VLC
+request completing late cannot open a video. After presentation, Opening media
 remains visible until VLC reports playing or an error/end. Genuine later stalls
 retain the existing progress-based buffering indicator.
 
@@ -96,3 +96,11 @@ Download/export callers retain their default persistence behavior.
 These changes remove known work from the critical path. No measured startup time,
 rendering, touch, close or throughput improvement is claimed until the signed app
 is exercised on an iPhone/iPad.
+
+## October UI redesign
+
+The options panel now uses a compact dark surface, capped width and internal
+scrolling; landscape anchors it at the trailing bottom edge. No full-screen dim
+layer or engine/service branding. All existing controls remain. See
+[the UI dimensions and device gates](UI-README.md#player). Native layout/touch
+verification remains outstanding for this patch.

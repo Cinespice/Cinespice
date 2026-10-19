@@ -43,15 +43,15 @@ portrait, manually locked landscape, camera safe areas, an iPad and larger text.
 | Area | Controls / expected result |
 | --- | --- |
 | Sign-in | Connect; Continue for phone/code/password/email; Back to sign in. Immediate busy state, one request, useful error/retry |
-| Library header | Back returns to library; Search opens search; Select channels opens picker; profile menu opens and its Choose/Refresh/Settings actions work |
-| Home | Choose/Manage/My channels; collection title and tile open that collection; hero Play/Resume starts one opening attempt; More info opens details |
-| Tabs | Home/My channels/Search/History activate from the entire visible cell; selected tab updates |
+| Library header | Back returns to library; Cinespice refreshes with feedback; the single Channels icon opens picker; Profile opens settings |
+| Home | Seven hero slots swipe; unavailable trends say so; hero Play/Resume starts one opening attempt; More info opens details |
+| Tabs | Home/Favorites/Search/Downloads/History activate from the entire visible cell; selected tab updates |
 | Search | Clear button works from its whole target; typing does not shift the row height; Retry/More results show progress; tapping a result opens the intended file |
 | Posters | Play target matches the clipped image; adjacent posters and their menus do not steal taps; scrolling does not play a file |
 | Video menu | Play/resume, start over, download/cancel, Save to Files, mark watched and remove history act on that video; async work is visible |
 | Opening/export | Cancel works across the entire label; cancelling then selecting another file cannot cause old playback; export shows preparation before Files picker |
-| Source picker | All scope segments, clear search, selection row, Show more/Continue finding sources and Done; selection busy/checked state is visible; dismissal ends scanning |
-| Settings/details | Done, refresh, each clear action and its confirmation/cancel, sign-out, project/license links; empty/busy refresh is disabled |
+| Source picker | Clear search, owner-first selection row, separate browse arrow, Show more/Continue finding sources and Done; selection busy/checked state is visible; dismissal ends scanning |
+| Settings/details | Done, four palettes, profile identity, each clear action and confirmation/cancel, sign-out, creator links; Request feature clearly unavailable |
 | Player navigation | Down arrow closes during opening, buffering, playback, pause and landscape; controls remain notch-safe |
 | Transport | Play/pause changes symbol immediately; ±10 buttons and seek slider work when enabled; video double tap seeks without also hiding controls |
 | Player tools | Speed, Tracks, Picture, Rotate and More open/change the intended setting; full padded button targets work; selected values update |
@@ -63,3 +63,24 @@ portrait, manually locked landscape, camera safe areas, an iPad and larger text.
 
 Repeat with VoiceOver/Switch Control, slow network, interrupted downloads and rapid
 taps. Record the installed commit and any failing control, orientation and screen.
+
+## Redesign acceptance (not yet exercised on a device)
+
+- Scroll a large collection to the bottom. Switch to History: top visible, at most
+  five entries. Repeat with Favorites/Watchlist and every tab; return from player
+  without losing the underlying scroll position.
+- Search is empty before typing. Clear the query: no cached results remain.
+  Tap outside the keyboard, then tap a button: keyboard closes and action fires once.
+- Favorite and watchlist a remote search result; restart and confirm both. Deselect
+  and reselect its channel; items return. Switch accounts: lists remain isolated.
+- Upgrade a schema2 library with history/cursors; verify all still available.
+- Use all four palettes on every page/sheet. Test large text, VoiceOver and Reduce
+  Transparency. Confirm light palette labels and artwork overlays remain readable.
+- Check sort order for known/unknown/ambiguous years and A–Z/Z–A. Sort only loaded
+  results; no claim of complete chronological order across unindexed messages.
+- Complete a download, relaunch, open Downloads, export original filename; clear
+  local media and confirm list memberships/history remain. Retry interrupted work.
+- In player, open each options panel in both orientations: X/outside dismissal,
+  track imports, subtitle sizes, scrolling and selected states. No tap-through seek.
+- Check seven hero pages, foreground after a UTC day change, last-search result,
+  deselected source removal, and truthful catalogue placeholders.

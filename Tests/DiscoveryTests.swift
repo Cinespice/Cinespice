@@ -212,3 +212,28 @@ final class MediaIndexTests: XCTestCase {
         XCTAssertEqual(LibraryOrder.newest.sort([b, a]).map(\.date), [200, 100])
     }
 }
+
+final class SavedListMigrationTests: XCTestCase {
+    func testVersionTwoUpgradeRetainsSelectionHistoryAndCursor() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("library.sqlite")
+        let db = LibraryDatabase(url: url)
+        let video = TelegramVideo(messageID: 7, chatID: 1, fileID: 9, title: "Synthetic", size: 0, mimeType: "video/mp4", duration: 120, localPath: "", downloadedBytes: 0, isDownloaded: false)
+        try await db.save(collection: TelegramChat(id: 1, title: "Synthetic", type: "chatTypeSupergroup"), selectedByDefault: true)
+        var index = CollectionIndex(); index.advance(filter: CollectionIndex.filters[0], from: 0, next: 42)
+        try await db.savePage(videos: [video], chatID: 1, index: index)
+        try await db.save(progress: WatchProgress(videoID: video.id, position: 30, duration: 120), video: video)
+        var connection: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(url.path, &connection), SQLITE_OK)
+        defer { sqlite3_close(connection) }
+        XCTAssertEqual(sqlite3_exec(connection, "DROP TABLE saved_lists; PRAGMA user_version=2", nil, nil, nil), SQLITE_OK)
+        let upgraded = LibraryDatabase(url: url)
+        try await upgraded.setSaved(video, list: "Favorites", saved: true)
+        let state = try await upgraded.snapshot()
+        XCTAssertEqual(state.selected, [1])
+        XCTAssertEqual(state.indexes[1], index)
+        XCTAssertEqual(state.history[video.id]?.position, 30)
+        XCTAssertEqual(state.savedLists["Favorites"], [video.id])
+    }
+}

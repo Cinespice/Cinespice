@@ -18,7 +18,6 @@ struct CinespiceApp: App {
                 .environmentObject(library)
                 .environmentObject(telegram)
                 .environmentObject(rangeServer)
-                .preferredColorScheme(.dark)
         }
     }
 }

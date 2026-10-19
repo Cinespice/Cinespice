@@ -140,6 +140,7 @@ struct WatchProgress: Codable, Equatable, Sendable {
 }
 
 struct LibrarySnapshot: Sendable {
+    var savedLists: [String: Set<String>] = [:]
     var revision: Int = 0
     var videos: [TelegramVideo] = []
     var collections: [TelegramChat] = []
