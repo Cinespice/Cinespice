@@ -120,7 +120,11 @@ public class ChannelUiTest {
                 View decor = activity.getWindow().getDecorView();
                 WindowInsets insets = decor.getRootWindowInsets();
                 if (android.os.Build.VERSION.SDK_INT >= 30) visible.set(insets != null && insets.isVisible(WindowInsets.Type.ime()));
-                else visible.set(insets != null && insets.getSystemWindowInsetBottom() > 100 * decor.getResources().getDisplayMetrics().density);
+                else {
+                    android.graphics.Rect frame = new android.graphics.Rect();
+                    decor.getWindowVisibleDisplayFrame(frame);
+                    visible.set(decor.getRootView().getHeight() - frame.bottom > 100 * decor.getResources().getDisplayMetrics().density);
+                }
             });
             if (visible.get() == expected) return; SystemClock.sleep(100);
         } while (SystemClock.elapsedRealtime() < end);
