@@ -4,6 +4,14 @@ A private Telegram video library for iPhone and iPad, built with SwiftUI, TDLib
 and VideoLAN MobileVLCKit. Previously named Tevee. No backend, subscriptions or
 analytics.
 
+## Android APK
+
+A native Android port is in [`android/`](android/README.md), with Cinespice branding,
+Telegram login/library and embedded VLC. It targets Android 8.0+ and builds signed,
+directly installable debug APKs for ARM64, 32-bit ARM and x86_64. Build/install steps,
+Android differences and remaining device checks are in the Android README.
+GitHub Actions workflow: **Build Cinespice Android APK**.
+
 ## Current status
 
 The user reports real Telegram streaming works. Revision `41e002f` also has a

@@ -1,0 +1,42 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'app.cinespice.android'
+    compileSdk 35
+    buildToolsVersion '35.0.0'
+    defaultConfig {
+        applicationId 'app.cinespice.android'
+        minSdk 26
+        targetSdk 35
+        versionCode 1
+        versionName '1.0'
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+    }
+    compileOptions { coreLibraryDesugaringEnabled true; sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    // A signed debug APK is directly installable. Production release keys stay outside Git.
+    buildTypes { release { minifyEnabled false } }
+    splits {
+        abi { enable true; reset(); include 'arm64-v8a', 'armeabi-v7a', 'x86_64'; universalApk false }
+    }
+    packaging { jniLibs { useLegacyPackaging true } }
+    lint { abortOnError true }
+}
+dependencies {
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'
+    implementation 'org.videolan.android:libvlc-all:3.6.5'
+    androidTestImplementation 'androidx.test:runner:1.6.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20240303'
+}
+
+tasks.register('verifyTdlib') {
+    doLast {
+        ['arm64-v8a', 'armeabi-v7a', 'x86_64'].each { abi ->
+            if (!file("src/main/jniLibs/${abi}/libtdjson.so").isFile()) {
+                throw new GradleException('TDLib binaries are missing. Run ./prepare-tdlib.sh from android/ before building.')
+            }
+        }
+    }
+}
+tasks.named('preBuild').configure { dependsOn 'verifyTdlib' }
