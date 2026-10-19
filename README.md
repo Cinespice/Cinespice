@@ -8,9 +8,29 @@ analytics.
 
 The user reports real Telegram streaming works. Revision `41e002f` also has a
 [successful macOS build](https://github.com/Thinkmasalablog/Tevee/actions/runs/38937494876).
-The player changes in this update still require a new macOS build and signed-device
+The UI and player changes in this update still require a new macOS build and signed-device
 verification. Implemented features below describe the code; they do not imply every
 format, screen size or failure scenario has been tested on an iPhone.
+
+### UI redesign
+
+- Five compact tabs: Home, Favorites, Search, Downloads, History; one channel picker.
+- Persistent Favorites and Watchlist, four palettes (two dark/two light), title and
+  filename-year sorting. Latest releases is the default; unknown years stay last.
+- Empty search until typing; independent destination scroll positions; five recent
+  history cards. Tapping Cinespice refreshes the current collection/search or queues
+  one newest page per selected source.
+- Seven hero slots: recently added, daily pick, four visibly unavailable catalogue
+  trends, last searched. No metadata provider is connected yet.
+- Completed download status persists. Player options use compact dark panels.
+- Profile shows real account name/username, themes, storage and creator links.
+  Request feature is a coming-later label, not an active submission button.
+
+Read the [iOS UI specification](docs/UI-README.md) and [Android UI guide without
+Liquid Glass](docs/ANDROID-UI.md). The materials use supported SwiftUI APIs; native
+iOS 27 Liquid Glass rendering is not claimed. New native/device validation remains
+outstanding. SQLite schema 3 preserves existing metadata/history; older app builds
+will reject the upgraded database instead of overwriting it.
 
 ### Touch feedback update
 
@@ -24,8 +44,8 @@ Physical touch behavior and native builds for this update remain unverified.
 
 1. Enter your Telegram API ID/hash from `my.telegram.org`, then your own account's
    phone number, login code and any requested two-step/email verification.
-2. Open **My channels** and select the channels/groups you want to browse.
-3. Open a collection or search by title/filename, then tap a video to play.
+2. Open the **Channels icon** in the header and select the channels/groups you want to browse.
+3. Tap the arrow beside a selected source to browse, or search by title/filename, then tap a video to play.
 
 ### Account and session
 
@@ -33,7 +53,7 @@ Physical touch behavior and native builds for this update remain unverified.
   are stored in iOS Keychain. Reopening normally restores login; revoked sessions,
   sign-out or unavailable secure storage can require authentication again.
 - Account-specific SQLite databases store the library, selections, paging cursors
-  and watch history. Renaming Tevee to Cinespice keeps the bundle ID
+  and watch history, Favorites and Watchlist. Renaming Tevee to Cinespice keeps the bundle ID
   `app.tevee.ios`, Keychain service and storage paths stable for upgrade continuity.
 - Channels/groups are supported. Personal chats and Saved Messages are currently
   excluded from browsing, following the selected-source requirement.
@@ -60,7 +80,7 @@ Physical touch behavior and native builds for this update remain unverified.
 
 - **Immediate tap feedback:** Loading media… appears with the filename, an animated
   indicator and Cancel. Duplicate taps do not start additional players. The player
-  then shows Opening in VLC… while VLC opens the media. Opening no longer waits
+  then shows Opening media… while VLC opens the media. Opening no longer waits
   for a redundant file request or the library snapshot refresh.
 - **Controls:** down arrow closes back to the library/search; bottom play/pause,
   ±10-second buttons, double-tap seeking, orange timeline and elapsed/remaining time.
@@ -100,7 +120,9 @@ Use **Download first** if streaming fails or seeking is unreliable. Full downloa
 use priority 32, TDLib's maximum documented scheduling priority; this does not
 promise faster bandwidth. During a full download, playback waits for completion.
 Completed videos play locally and can be exported with **Save to Files…**, retaining
-the original filename. Download cancellation is available from the video's menu.
+the original filename. Download cancellation is available from the video's menu. The Downloads tab shows
+full downloads from selected sources. Incomplete queues are not restored by this
+update after process termination; retry the download when needed.
 Format/codec, audio and subtitle support depends on VLC and the particular file;
 not every possible file is guaranteed playable.
 
@@ -163,6 +185,7 @@ reproducibility. Historical failure explanations: [Build history](docs/BUILD-HIS
 Run `swift test` for the portable core (Linux also needs SQLite headers/library).
 It covers synthetic HTTP ranges, range serialization, video decoding, discovery,
 search/paging, persistence/account boundaries, thumbnail budgets, spinner behavior
+saved-list schema upgrades, release sorting, completed-download metadata,
 and subtitle size values. It does not build SwiftUI/UIKit/Network/MobileVLCKit.
 
 For this update, verify a single play tap, cancellation followed by another tap,

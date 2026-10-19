@@ -14,6 +14,8 @@ final class TelegramClient: ObservableObject {
     @Published private(set) var discoveryError = ""
     @Published private(set) var moreCollections: Set<Int64> = []
     @Published private(set) var isClearingCache = false
+    @Published private(set) var profileName = ""
+    @Published private(set) var profileUsername = ""
     let library: LibraryStore
 
     private var clientID = td_create_client_id()
@@ -521,6 +523,8 @@ final class TelegramClient: ObservableObject {
                     }
                 }
                 guard accountSession == session else { return }
+                profileName = [me["first_name"] as? String, me["last_name"] as? String].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " ")
+                profileUsername = ((me["usernames"] as? [String: Any])?["active_usernames"] as? [String])?.first ?? ""
                 stage = .ready
                 discovery = TelegramDiscovery { [weak self] request in
                     guard let self else { throw CancellationError() }
@@ -533,7 +537,7 @@ final class TelegramClient: ObservableObject {
     }
 
     private func finishClosedClient() {
-        accountSession = UUID(); library.deactivate()
+        accountSession = UUID(); library.deactivate(); profileName = ""; profileUsername = ""
         for task in thumbnailRequests.values { task.cancel() }
         thumbnailRequests.removeAll(); loadingCollections.removeAll(); moreCollections.removeAll()
         isLoadingChats = false; collectionErrors = [:]; discoveryError = ""; isClearingCache = false; startingAccount = false

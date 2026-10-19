@@ -161,3 +161,71 @@ final class ThumbnailCacheTests: XCTestCase {
         do { try await cache.write(Data(repeating: 0, count: 5), key: "1_2_3"); XCTFail("Expected rejection") } catch { }
     }
 }
+
+final class SavedListAndSortTests: XCTestCase {
+    private func item(_ id: Int64, _ name: String, date: Int64 = 0) -> TelegramVideo {
+        TelegramVideo(messageID: id, chatID: 1, fileID: Int32(id), title: name, size: 0, mimeType: "video/mp4", duration: 0, localPath: "", downloadedBytes: 0, isDownloaded: false, date: date)
+    }
+    func testMembershipSurvivesReopenAndRefreshWithoutChangingHistory() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("library.sqlite")
+        let db = LibraryDatabase(url: url), video = item(1, "Synthetic (2024).mkv")
+        try await db.setSaved(video, list: "Favorites", saved: true)
+        try await db.setSaved(video, list: "Watchlist", saved: true)
+        try await db.setSaved(video, list: "Favorites", saved: true)
+        var refreshed = video; refreshed.fileName = "Updated.mkv"
+        try await db.save(videos: [refreshed])
+        let reopened = LibraryDatabase(url: url)
+        let state = try await reopened.snapshot()
+        XCTAssertEqual(state.savedLists["Favorites"], [video.id])
+        XCTAssertEqual(state.savedLists["Watchlist"], [video.id])
+        XCTAssertEqual(state.videos.first?.fileName, "Updated.mkv")
+        XCTAssertTrue(state.history.isEmpty)
+        try await reopened.setSaved(video, list: "Favorites", saved: false)
+        try await reopened.invalidateMediaCache()
+        let cleared = try await reopened.snapshot()
+        XCTAssertNil(cleared.savedLists["Favorites"])
+        XCTAssertEqual(cleared.savedLists["Watchlist"], [video.id])
+        let other = try await LibraryDatabase(url: root.appendingPathComponent("other.sqlite")).snapshot()
+        XCTAssertTrue(other.savedLists.isEmpty)
+    }
+    func testCompletedDownloadSurvivesRestartAndCacheClearKeepsLists() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("library.sqlite")
+        let db = LibraryDatabase(url: url), video = item(1, "Synthetic")
+        try await db.setSaved(video, list: "Watchlist", saved: true)
+        let status = try XCTUnwrap(LocalFileStatus(["id": Int32(1), "size": Int64(200), "local": ["path": "/synthetic/file.mkv", "downloaded_size": Int64(200), "is_downloading_completed": true]]))
+        try await db.saveCompletedFile(status)
+        let reopened = LibraryDatabase(url: url)
+        let saved = try await reopened.snapshot()
+        XCTAssertEqual(saved.videos.first?.localPath, "/synthetic/file.mkv")
+        XCTAssertEqual(saved.videos.first?.isDownloaded, true)
+        try await reopened.invalidateMediaCache()
+        let cleared = try await reopened.snapshot()
+        XCTAssertEqual(cleared.videos.first?.isDownloaded, false)
+        XCTAssertEqual(cleared.savedLists["Watchlist"], [video.id])
+    }
+    func testReleaseYearRejectsAmbiguousAndEmbeddedNumbers() {
+        XCTAssertEqual(item(1, "Film.2024.1080p.mkv").filenameYear, 2024)
+        XCTAssertNil(item(1, "Film.12024p.mkv").filenameYear)
+        XCTAssertNil(item(1, "Film.2020-2024.mkv").filenameYear)
+        XCTAssertNil(item(1, "Film.S02E2024.mkv").filenameYear)
+        XCTAssertNil(item(1, "Film.1080p.mkv", date: 1700000000).filenameYear)
+        var video = item(1, "Caption mentions 2025")
+        video.fileName = "Film.1997.mkv"
+        XCTAssertEqual(video.filenameYear, 1997)
+    }
+    func testReleaseSortAlwaysPlacesUnknownLast() {
+        let old = item(1, "Film.1999.mkv"), new = item(2, "Film.2024.mkv"), unknown = item(3, "Unknown", date: 9999)
+        XCTAssertEqual(LibraryOrder.latestRelease.sort([unknown, old, new]).map(\.messageID), [2, 1, 3])
+        XCTAssertEqual(LibraryOrder.earliestRelease.sort([unknown, new, old]).map(\.messageID), [1, 2, 3])
+    }
+    func testTitleSortAndDeterministicTies() {
+        let a = item(1, "Alpha"), b = item(2, "Bravo"), a2 = item(3, "Alpha")
+        XCTAssertEqual(LibraryOrder.titleAscending.sort([b, a]).map(\.messageID), [1, 2])
+        XCTAssertEqual(LibraryOrder.titleDescending.sort([a, b]).map(\.messageID), [2, 1])
+        XCTAssertEqual(LibraryOrder.titleAscending.sort([a, a2]).map(\.messageID), [3, 1])
+    }
+}

@@ -46,7 +46,7 @@ struct VLCPlaybackView: View {
                 if playback.isOpening || playback.isBuffering {
                     VStack(spacing: 12) {
                         ProgressView().tint(spice).scaleEffect(1.2)
-                        Text(playback.isOpening ? "Opening in VLC…" : "Buffering…").font(.caption.weight(.medium))
+                        Text(playback.isOpening ? "Opening media…" : "Buffering…").font(.caption.weight(.medium))
                     }.padding(20).background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 16))
                         .allowsHitTesting(false)
                 }
@@ -88,16 +88,18 @@ struct VLCPlaybackView: View {
                     }.padding() }
                 }
                 if let panel {
-                    Color.black.opacity(0.4).onTapGesture { self.panel = nil }
+                    Color.clear.contentShape(Rectangle()).onTapGesture { self.panel = nil }
                     VStack {
                         Spacer(minLength: 0)
-                        options(panel, maxHeight: max(100, geometry.size.height - 130))
-                    }.frame(maxWidth: 540).padding(12)
+                        options(panel, maxHeight: max(88, geometry.size.height * (geometry.size.width > geometry.size.height ? 0.6 : 0.32)))
+                    }.frame(maxWidth: geometry.size.width > geometry.size.height ? 340 : 420)
+                        .padding(12).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: geometry.size.width > geometry.size.height ? .bottomTrailing : .bottom)
                 }
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(Color.black.ignoresSafeArea())
         .foregroundStyle(.white)
+        .preferredColorScheme(.dark)
         .buttonStyle(CinespiceButtonStyle { pressed in
             pressingControl = pressed; interaction = UUID()
         })
@@ -170,7 +172,7 @@ struct VLCPlaybackView: View {
                 .accessibilityLabel("Close player").accessibilityIdentifier("player.close").disabled(closing)
             VStack(alignment: .leading, spacing: 4) {
                 Text(playback.selection.video.fileName ?? playback.selection.video.title).font(.subheadline.weight(.semibold)).lineLimit(2)
-                Text("CINESPICE  /  VLC  ·  " + (streaming ? "TELEGRAM" : "OFFLINE")).font(.system(size: 9, weight: .bold, design: .monospaced)).foregroundStyle(spice)
+                Text("CINESPICE").font(.system(size: 9, weight: .bold, design: .monospaced)).foregroundStyle(spice)
             }
             Spacer(minLength: 0)
             Button { locked = true } label: { Image(systemName: "lock.open").frame(width: 44, height: 44) }.accessibilityLabel("Lock controls")
@@ -221,7 +223,7 @@ struct VLCPlaybackView: View {
         playback.stop()
     }
     private func options(_ title: String, maxHeight: CGFloat) -> some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 4) {
             HStack { Text(title.uppercased()).font(.system(.headline, design: .rounded)); Spacer(); Button { panel = nil } label: { Image(systemName: "xmark").frame(width: 44, height: 44) }.accessibilityLabel("Close options") }
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
@@ -249,12 +251,12 @@ struct VLCPlaybackView: View {
                         }
                         option("Download video") { let video = playback.selection.video; closePlayer(); telegram.download(video) }
                         Text("Downloads stay in the library. Use Save to Files on the completed video's menu to export its original filename.").font(.caption).foregroundStyle(.secondary)
-                        Text("Cinespice by Thinkmasalablog\nPlayback powered by VideoLAN MobileVLCKit 3.7.4").font(.caption).foregroundStyle(.secondary)
+                        Text("Created by Masalaots · @notmasalaoats").font(.caption).foregroundStyle(.secondary)
                     }
                 }
             }.frame(maxHeight: min(440, maxHeight))
-        }.padding(20).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24))
-            .overlay(RoundedRectangle(cornerRadius: 24).stroke(.white.opacity(0.15)).allowsHitTesting(false))
+        }.padding(12).background(Color(white: 0.08).opacity(0.96), in: RoundedRectangle(cornerRadius: 16))
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(spice.opacity(0.3)).allowsHitTesting(false))
     }
     private var trackOptions: some View {
         VStack(alignment: .leading, spacing: 12) {

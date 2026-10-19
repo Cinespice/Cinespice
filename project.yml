@@ -16,10 +16,9 @@ settings:
     CODE_SIGNING_ALLOWED: "NO"
     INFOPLIST_KEY_CFBundleDisplayName: Cinespice
     INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
-    INFOPLIST_KEY_UIUserInterfaceStyle: Dark
     INFOPLIST_KEY_UIRequiresFullScreen: YES
     INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
-    INFOPLIST_KEY_NSHumanReadableCopyright: "Cinespice · Thinkmasalablog"
+    INFOPLIST_KEY_NSHumanReadableCopyright: "Cinespice · Masalaots"
     INFOPLIST_KEY_CFBundleShortVersionString: "$(MARKETING_VERSION)"
     INFOPLIST_KEY_CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
     MARKETING_VERSION: "1.1"

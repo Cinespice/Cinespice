@@ -28,13 +28,14 @@ actor LibraryDatabase {
         sqlite3_busy_timeout(db, 3000)
         do {
             let version = try rows("PRAGMA user_version").first.flatMap { Int($0[0]) } ?? 0
-            guard version <= 2 else { throw failure("Library requires a newer app version") }
+            guard version <= 3 else { throw failure("Library requires a newer app version") }
             try execute("PRAGMA journal_mode=WAL")
             try execute("CREATE TABLE IF NOT EXISTS videos (id TEXT PRIMARY KEY, payload TEXT NOT NULL)")
             try execute("CREATE TABLE IF NOT EXISTS collections (id TEXT PRIMARY KEY, payload TEXT NOT NULL, selected INTEGER NOT NULL DEFAULT 0)")
             try execute("CREATE TABLE IF NOT EXISTS history (id TEXT PRIMARY KEY, payload TEXT NOT NULL)")
             try execute("CREATE TABLE IF NOT EXISTS collection_indexes (id TEXT PRIMARY KEY, payload TEXT NOT NULL)")
-            try execute("PRAGMA user_version=2")
+            try execute("CREATE TABLE IF NOT EXISTS saved_lists (list TEXT NOT NULL, video_id TEXT NOT NULL, PRIMARY KEY(list, video_id))")
+            try execute("PRAGMA user_version=3")
         } catch {
             sqlite3_close(db); connection = nil
             throw error
@@ -95,6 +96,7 @@ actor LibraryDatabase {
         for row in try rows("SELECT id,payload FROM collection_indexes") {
             if let id = Int64(row[0]) { snapshot.indexes[id] = try decode(CollectionIndex.self, row[1]) }
         }
+        for row in try rows("SELECT list,video_id FROM saved_lists") { snapshot.savedLists[row[0], default: []].insert(row[1]) }
         snapshot.revision = revision
         return snapshot
     }
@@ -149,9 +151,34 @@ actor LibraryDatabase {
         } catch { try? execute("ROLLBACK"); throw error }
     }
 
+    /// Save metadata with membership so remote search results survive a restart.
+    func setSaved(_ video: TelegramVideo, list: String, saved: Bool) throws {
+        try execute("BEGIN IMMEDIATE")
+        do {
+            if saved {
+                try execute("INSERT INTO videos(id,payload) VALUES(?,?) ON CONFLICT(id) DO NOTHING", [video.id, try json(video)])
+                try execute("INSERT OR IGNORE INTO saved_lists(list,video_id) VALUES(?,?)", [list, video.id])
+            } else {
+                try execute("DELETE FROM saved_lists WHERE list=? AND video_id=?", [list, video.id])
+            }
+            try execute("COMMIT")
+        } catch { try? execute("ROLLBACK"); throw error }
+    }
+
     func clearHistory(videoID: String? = nil) throws {
         if let videoID { try execute("DELETE FROM history WHERE id=?", [videoID]) }
         else { try execute("DELETE FROM history") }
+    }
+
+    func saveCompletedFile(_ status: LocalFileStatus) throws {
+        guard status.complete else { return }
+        let videos = try snapshot().videos.filter { $0.fileID == status.id }.map { video -> TelegramVideo in
+            var copy = video
+            copy.size = status.size; copy.localPath = status.path
+            copy.downloadedBytes = status.downloaded; copy.isDownloaded = true
+            return copy
+        }
+        try save(videos: videos)
     }
 
     func invalidateMediaCache() throws {
