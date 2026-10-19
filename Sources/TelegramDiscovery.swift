@@ -48,10 +48,13 @@ actor TelegramDiscovery {
         let local = try await request(parameters)
         var seen = Set<Int64>()
         let ids = ((remote["chat_ids"] as? [Int64] ?? []) + (local["chat_ids"] as? [Int64] ?? [])).filter { seen.insert($0).inserted }
-        return try await resolve(Array(ids.prefix(Self.batchSize)), accountID: accountID)
+        // Telegram's unfiltered search mixes users, bots and collections in the
+        // same result page. Filter while resolving instead of truncating the raw
+        // IDs first, or the first 30 non-group results can hide real channels.
+        return try await resolve(ids, accountID: accountID, collectionLimit: Self.batchSize)
     }
 
-    private func resolve(_ ids: [Int64], accountID: Int64?) async throws -> [TelegramChat] {
+    private func resolve(_ ids: [Int64], accountID: Int64?, collectionLimit: Int? = nil) async throws -> [TelegramChat] {
         var chats: [TelegramChat] = []
         for id in ids {
             try Task.checkCancellation()
@@ -63,7 +66,10 @@ actor TelegramDiscovery {
             } else if let id = type["basic_group_id"] as? Int64 {
                 group = try await request(["@type": "getBasicGroup", "basic_group_id": id])
             }
-            if let chat = TelegramChat.from(data, group: group, accountID: accountID) { chats.append(chat) }
+            if let chat = TelegramChat.from(data, group: group, accountID: accountID) {
+                if collectionLimit == nil || chat.isCollection { chats.append(chat) }
+                if let collectionLimit, chats.count >= collectionLimit { break }
+            }
         }
         return TelegramChat.ownerFirst(chats)
     }

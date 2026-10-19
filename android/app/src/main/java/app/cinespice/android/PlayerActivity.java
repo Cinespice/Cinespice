@@ -3,6 +3,7 @@ package app.cinespice.android;
 import android.app.*;
 import android.content.*;
 import android.content.pm.ActivityInfo;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.*;
 import android.provider.OpenableColumns;
@@ -81,14 +82,15 @@ public final class PlayerActivity extends androidx.appcompat.app.AppCompatActivi
             v.setPadding(edges ? 0 : insets.getSystemWindowInsetLeft(), edges ? 0 : insets.getSystemWindowInsetTop(), edges ? 0 : insets.getSystemWindowInsetRight(), edges ? 0 : insets.getSystemWindowInsetBottom());
             return insets.consumeSystemWindowInsets();
         }); root.requestApplyInsets();
-        controls = Ui.column(this); controls.setBackgroundColor(0x99000000);
-        LinearLayout top = Ui.row(this);
-        top.addView(Ui.quiet(this, "Close", this::finish)); TextView name = Ui.text(this, video.name, 15, Ui.TEXT); name.setMaxLines(2); Ui.weighted(top, name); controls.addView(top);
+        controls = Ui.column(this); controls.setPadding(0, 0, 0, 0); controls.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+        LinearLayout top = Ui.row(this); top.setPadding(Ui.dp(this, 16), Ui.dp(this, 4), Ui.dp(this, 16), Ui.dp(this, 4)); top.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0xD9000000, 0xA6000000, 0x00000000}));
+        top.addView(Ui.quiet(this, "Close", this::finish)); TextView name = Ui.text(this, video.name, 14, Ui.TEXT); name.setMaxLines(2); Ui.weighted(top, name); controls.addView(top, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout spacer = new LinearLayout(this); controls.addView(spacer, new LinearLayout.LayoutParams(-1, 0, 1));
-        message = Ui.text(this, "Opening in VLC…", 17, Ui.ACCENT); controls.addView(message);
-        spinner = new ProgressBar(this); controls.addView(spinner, new LinearLayout.LayoutParams(Ui.dp(this, 32), Ui.dp(this, 32)));
-        time = Ui.text(this, "0:00:00", 14, Ui.TEXT); controls.addView(time);
-        seek = new SeekBar(this); seek.setProgressTintList(android.content.res.ColorStateList.valueOf(0xFFFF774A)); seek.setThumbTintList(android.content.res.ColorStateList.valueOf(0xFFFF774A)); seek.setMax(1000); seek.setContentDescription("Video timeline"); controls.addView(seek);
+        LinearLayout bottom = Ui.column(this); bottom.setPadding(Ui.dp(this, 16), Ui.dp(this, 12), Ui.dp(this, 16), Ui.dp(this, 12)); bottom.setBackground(new GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP, new int[]{0xE8000000, 0xD9000000, 0x00000000}));
+        message = Ui.text(this, "Opening in VLC…", 15, Ui.ACCENT); bottom.addView(message);
+        spinner = new ProgressBar(this); bottom.addView(spinner, new LinearLayout.LayoutParams(Ui.dp(this, 28), Ui.dp(this, 28)));
+        time = Ui.text(this, "0:00:00", 12, Ui.TEXT); bottom.addView(time);
+        seek = new SeekBar(this); seek.setProgressTintList(android.content.res.ColorStateList.valueOf(0xFFFF774A)); seek.setThumbTintList(android.content.res.ColorStateList.valueOf(0xFFFF774A)); seek.setMax(1000); seek.setContentDescription("Video timeline"); bottom.addView(seek);
         seek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             public void onStartTrackingTouch(SeekBar bar) { dragging = true; handler.removeCallbacks(hide); }
             public void onStopTrackingTouch(SeekBar bar) { if (player != null && player.isSeekable()) player.setTime(player.getLength() * bar.getProgress() / 1000); dragging = false; reveal(); }
@@ -97,8 +99,8 @@ public final class PlayerActivity extends androidx.appcompat.app.AppCompatActivi
         LinearLayout transport = Ui.row(this);
         Ui.weighted(transport, Ui.button(this, "−10s", () -> skip(-10000)));
         play = Ui.primary(this, "Pause", () -> { if (player != null) { if (player.isPlaying()) { player.pause(); save(); } else player.play(); play.setText(player.isPlaying() ? "Pause" : "Play"); reveal(); } }); Ui.weighted(transport, play);
-        Ui.weighted(transport, Ui.button(this, "+10s", () -> skip(10000))); controls.addView(transport);
-        HorizontalScrollView menuScroll = new HorizontalScrollView(this); LinearLayout menu = Ui.row(this); menuScroll.addView(menu); controls.addView(menuScroll);
+        Ui.weighted(transport, Ui.button(this, "+10s", () -> skip(10000))); bottom.addView(transport);
+        HorizontalScrollView menuScroll = new HorizontalScrollView(this); LinearLayout menu = Ui.row(this); menuScroll.addView(menu); bottom.addView(menuScroll);
         menu.addView(Ui.button(this, "Audio", () -> tracks(false)));
         menu.addView(Ui.button(this, "Subtitles", () -> tracks(true)));
         menu.addView(Ui.button(this, "Speed", this::speed));
@@ -110,6 +112,7 @@ public final class PlayerActivity extends androidx.appcompat.app.AppCompatActivi
             if (bridge != null) { bridge.close(); bridge = null; }
             telegram.io.execute(() -> { try { telegram.download(video); runOnUiThread(() -> { Toast.makeText(this, "Downloading. Reopen the video after download completes.", Toast.LENGTH_LONG).show(); finish(); }); } catch (Exception e) { runOnUiThread(() -> message.setText(e.getMessage())); } });
         })));
+        controls.addView(bottom, new LinearLayout.LayoutParams(-1, -2));
         unlock = Ui.primary(this, "Unlock", () -> { locked = false; unlock.setVisibility(View.GONE); reveal(); }); unlock.setVisibility(View.GONE);
     }
     private void start() throws Exception {

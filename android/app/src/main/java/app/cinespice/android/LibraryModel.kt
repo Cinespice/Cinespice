@@ -45,10 +45,17 @@ class LibraryModel(application: Application, private val saved: SavedStateHandle
     private var store: SavedStore? = null
     internal var artwork: Artwork? = null; private set
     private var scan: Job? = null
+    private var channelSearchJob: Job? = null
+    private var channelSearchEpoch = 0L
     private var queryJob: Job? = null
     private var session: SearchSession? = null
     private var queryEpoch = 0L
     private val loader = Mutex()
+    private val sourceLoader = Mutex()
+    var channelSearchLoading by mutableStateOf(false); private set
+    var channelSearchError by mutableStateOf(""); private set
+    var channelScanError by mutableStateOf(""); private set
+    var channelSearchMatches by mutableStateOf<Set<Long>>(emptySet()); private set
     init { telegram.listen(this); changed() }
     override fun changed() {
         stage = telegram.stage
@@ -115,27 +122,56 @@ class LibraryModel(application: Application, private val saved: SavedStateHandle
         if ((if (list == "Favorites") favorites else watchlist).contains(id)) entries.remove(id, list) else entries.put(SavedStore.Member(id, list))
         reload(); status = if ((if (list == "Favorites") favorites else watchlist).contains(id)) "Saved to $list" else "Removed from $list"
     }
-    fun showChannels() { channelsVisible = true; scanSources() }
-    fun closeChannels() { channelsVisible = false; scan?.cancel(); scan = null; scanning = false }
-    fun channelFilter(value: String) { channelQuery = value; saved["channelQuery"] = value }
+    fun showChannels() { channelsVisible = true; scanSources(); if (channelQuery.isNotBlank()) searchChannels(channelQuery) }
+    fun closeChannels() {
+        channelsVisible = false; scan?.cancel(); scan = null; scanning = false
+        channelSearchEpoch++; channelSearchJob?.cancel(); channelSearchJob = null
+        channelSearchLoading = false
+    }
+    fun channelFilter(value: String) {
+        channelQuery = value; saved["channelQuery"] = value
+        searchChannels(value)
+    }
     internal fun select(source: Library.Chat) { telegram.requireLibrary().select(source.id(), !source.selected()); reload() }
     fun scanSources() {
         if (scan?.isActive == true || !discoveryMore) return
         val generation = telegram.generation
         scan = viewModelScope.launch {
-            scanning = true
+            scanning = true; channelScanError = ""
             try {
                 while (channelsVisible && discoveryMore) {
-                    discoveryMore = withContext(Dispatchers.IO) { telegram.discover() }
+                    discoveryMore = withContext(Dispatchers.IO) { sourceLoader.withLock { telegram.discover() } }
                     if (generation != telegram.generation) return@launch
                     reload(); delay(500)
                 }
             } catch (e: CancellationException) { throw e }
-            catch (e: Exception) { status = "${e.message} · Retry finding channels" }
+            catch (e: Exception) { channelScanError = "Could not load channels: ${e.message ?: "Try again."}"; status = "${e.message} · Retry finding channels" }
             finally { scanning = false }
         }
     }
-    fun searchChannels() { val filter = channelQuery.trim(); work("Finding channels…") { network { telegram.searchChats(filter) }; reload() } }
+    fun searchChannels() = searchChannels(channelQuery)
+    private fun searchChannels(value: String) {
+        val filter = value.trim()
+        channelSearchEpoch++
+        val token = channelSearchEpoch
+        channelSearchJob?.cancel()
+        channelSearchError = ""
+        channelSearchMatches = emptySet()
+        if (filter.isEmpty() || stage != "ready") { channelSearchLoading = false; return }
+        channelSearchLoading = true
+        channelSearchJob = viewModelScope.launch {
+            try {
+                delay(450)
+                val matches = withContext(Dispatchers.IO) { sourceLoader.withLock { telegram.searchChats(filter) } }
+                if (token == channelSearchEpoch && channelsVisible) { channelSearchMatches = matches; reload() }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                if (token == channelSearchEpoch) channelSearchError = "Channel search failed: ${e.message ?: "Try again."}"
+            } finally {
+                if (token == channelSearchEpoch) channelSearchLoading = false
+            }
+        }
+    }
     fun search(value: String) {
         query = value; saved["query"] = value; session = null; queryEpoch++
         val token = queryEpoch; queryJob?.cancel(); searchResults = emptyList(); searching = value.isNotBlank(); searchMore = true
@@ -250,5 +286,5 @@ class LibraryModel(application: Application, private val saved: SavedStateHandle
         }
     }
     fun message(value: String) { status = value }
-    override fun onCleared() { telegram.unlisten(this); scan?.cancel(); queryJob?.cancel(); store?.close(); artwork?.close() }
+    override fun onCleared() { telegram.unlisten(this); scan?.cancel(); channelSearchJob?.cancel(); queryJob?.cancel(); store?.close(); artwork?.close() }
 }

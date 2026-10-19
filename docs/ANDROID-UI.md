@@ -22,7 +22,7 @@ touch targets. Honor status/navigation bars, display cutouts and font scaling.
 - Seven-position `HorizontalPager`, dots and accessible page descriptions. No
   autoplay or fake trending data. Preserve explicit provider placeholders.
 - Use standard Android text/fonts with the same hierarchy: compact bold wordmark,
-  28sp page headings, 13–15sp card titles, subdued metadata. Support user font scale.
+  24sp page headings, 13–14sp card titles, subdued 11–13sp metadata. Support user font scale.
 
 ## State and interactions
 
@@ -43,8 +43,13 @@ of caches and watch history. Deselecting a source hides, not deletes, saved item
 
 Search starts empty. Debounce remote work, query only selected sources, merge by
 message ID and retain server paging cursors. Show pending/error/retry feedback.
+The Channels picker searches saved metadata as the user types, then merges
+matching Telegram server and local chat results; it must filter to groups/channels
+before limiting visible matches. Show search progress and errors inside the picker.
 Hide the keyboard on outside taps and navigation without consuming the underlying
-button action; preserve focus within text controls. Use native IME/search actions.
+button action; preserve focus within text controls. Let the sheet/window own IME
+insets and do not apply duplicate `imePadding` to both the app content and sheet.
+Use native IME/search actions.
 
 Downloads show actual pending/completed state, never label a sparse stream cache
 as a full download. Export via Android Storage Access Framework using the original
@@ -57,8 +62,11 @@ creator's social links and a visibly unavailable Request feature placeholder.
 
 ## Playback
 
-Integrate supported Android libVLC APIs after separate compatibility/license work.
-Do not port Swift/Objective-C runtime selectors. Recreate the custom black player,
+Use the pinned Android libVLC APIs; do not port Swift/Objective-C runtime selectors.
+Keep the picture visible under controls: transparent full-screen hit layer with
+compact top/bottom black gradients, rather than a dim background over the full
+video. Keep player labels and option rows compact while preserving 48dp targets.
+Recreate the custom black player,
 orange timeline, ±10 seconds, play/pause, tracks, subtitle size/delay, speed, aspect,
 lock and explicit orientation toggle. Fit respects cutouts; edge-to-edge is opt-in.
 

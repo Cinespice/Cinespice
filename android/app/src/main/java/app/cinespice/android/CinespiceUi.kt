@@ -99,7 +99,9 @@ internal val destinations = listOf(Destination("home", "Home", Icons.Default.Hom
                     }
                 }
             ) { padding ->
-                Row(Modifier.fillMaxSize().padding(padding).imePadding()) {
+                // Scaffold already applies the safe-drawing insets. A second IME
+                // inset here double-counted the keyboard when edge-to-edge was on.
+                Row(Modifier.fillMaxSize().padding(padding)) {
                     if (rail) NavigationRail(containerColor = palette.surface) { destinations.forEach { dest -> NavigationRailItem(modifier = Modifier.semantics { contentDescription = "${dest.title} tab" }, selected = model.page == dest.id, onClick = { navigate(dest.id) }, icon = { Icon(dest.icon, dest.title) }, label = { Text(dest.title) }) } }
                     Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.TopCenter) {
                         if (model.stage == "ready") LibraryPage(activity, model, Modifier.widthIn(max = 1200.dp).fillMaxSize()) else Authentication(activity, model)
@@ -163,7 +165,7 @@ internal val destinations = listOf(Destination("home", "Home", Icons.Default.Hom
             }
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(when(model.page) { "favorites" -> "Saved for later"; "search" -> "Find your next watch"; "downloads" -> "Downloads"; "history" -> "Recently watched"; "collection" -> model.chatTitle; else -> "Your library" }, style = MaterialTheme.typography.headlineMedium, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                    Text(when(model.page) { "favorites" -> "Saved for later"; "search" -> "Find your next watch"; "downloads" -> "Downloads"; "history" -> "Recently watched"; "collection" -> model.chatTitle; else -> "Your library" }, style = MaterialTheme.typography.headlineMedium, fontSize = 24.sp, fontWeight = FontWeight.Bold)
                     if (model.page == "favorites") SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) { listOf("Favorites", "Watchlist").forEachIndexed { index, list -> SegmentedButton(selected = model.savedList == list, onClick = { model.setList(list) }, shape = SegmentedButtonDefaults.itemShape(index, 2)) { Text(list) } } }
                     if (model.page == "search") {
                         OutlinedTextField(model.query, model::search, Modifier.fillMaxWidth().inputArea(), label = { Text("Search videos") }, singleLine = true, leadingIcon = { Icon(Icons.Default.Search, null) }, trailingIcon = { if (model.query.isNotEmpty()) IconButton(onClick = { model.search("") }) { Icon(Icons.Default.Close, "Clear search") } else Spacer(Modifier.size(48.dp)) }, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { model.search(model.query) }))
@@ -211,7 +213,7 @@ internal val destinations = listOf(Destination("home", "Home", Icons.Default.Hom
                 Column(Modifier.padding(24.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Text(label, color = Color.White.copy(alpha = .8f), fontSize = 11.sp, letterSpacing = 2.sp)
                     Spacer(Modifier.height(32.dp))
-                    Text(video?.name?.substringBeforeLast('.') ?: if (slot in 2..5) "More stories,\ncoming into view." else if (slot == 6) "What will you find?" else "Your own cinema.", color = Color.White, fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.Bold, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                    Text(video?.name?.substringBeforeLast('.') ?: if (slot in 2..5) "More stories,\ncoming into view." else if (slot == 6) "What will you find?" else "Your own cinema.", color = Color.White, fontSize = 24.sp, lineHeight = 29.sp, fontWeight = FontWeight.Bold, maxLines = 3, overflow = TextOverflow.Ellipsis)
                     Text(if (video != null) videoDetails(video) else if (slot in 2..5) "Catalogue not connected" else if (slot == 6) "Complete a search to see a result here." else "Choose your channels to get started.", color = Color.White.copy(alpha = .75f), fontSize = 13.sp)
                     if (video != null) Row(verticalAlignment = Alignment.CenterVertically) {
                         Button(onClick = { activity.open(video) }) { Icon(Icons.Default.PlayArrow, null); Text(if (model.telegram.requireLibrary().position(video.key()) >= 5000) "Resume" else "Play") }
@@ -294,12 +296,15 @@ internal fun videoDetails(video: Video): String = listOfNotNull(VideoSort.year(v
             dialogView.viewTreeObserver.addOnWindowFocusChangeListener(listener)
             onDispose { if (dialogView.viewTreeObserver.isAlive) dialogView.viewTreeObserver.removeOnWindowFocusChangeListener(listener) }
         }
-        Column(Modifier.fillMaxSize().outsideKeyboard().imePadding().padding(horizontal = 20.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) { Text("Channels", Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold); TextButton(onClick = model::closeChannels) { Text("Done") } }
+        Column(Modifier.fillMaxSize().outsideKeyboard().padding(horizontal = 20.dp)) {
+            Row(Modifier.heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) { Text("Channels", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold); TextButton(onClick = model::closeChannels) { Text("Done") } }
             Text("Select sources for your library. Use the arrow to browse an added source.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-            OutlinedTextField(model.channelQuery, model::channelFilter, Modifier.fillMaxWidth().padding(vertical = 12.dp).inputArea(), singleLine = true, label = { Text("Search channels and groups") }, leadingIcon = { Icon(Icons.Default.Search, null) }, trailingIcon = { if (model.channelQuery.isNotEmpty()) IconButton(onClick = { model.channelFilter("") }) { Icon(Icons.Default.Close, "Clear channel search") } else Spacer(Modifier.size(48.dp)) }, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { if (model.channelQuery.isNotBlank()) model.searchChannels() }))
+            OutlinedTextField(model.channelQuery, model::channelFilter, Modifier.fillMaxWidth().padding(vertical = 10.dp).inputArea(), singleLine = true, label = { Text("Search channels and groups") }, leadingIcon = { Icon(Icons.Default.Search, null) }, trailingIcon = { if (model.channelQuery.isNotEmpty()) IconButton(onClick = { model.channelFilter("") }) { Icon(Icons.Default.Close, "Clear channel search") } else Spacer(Modifier.size(48.dp)) }, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { model.searchChannels() }))
+            if (model.channelSearchLoading) Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) { CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp); Text("  Searching Telegram…", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
+            if (model.channelSearchError.isNotBlank()) Text(model.channelSearchError, Modifier.fillMaxWidth().padding(bottom = 8.dp), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            if (model.channelScanError.isNotBlank()) Text(model.channelScanError, Modifier.fillMaxWidth().padding(bottom = 8.dp), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             if (model.scanning) LinearProgressIndicator(Modifier.fillMaxWidth().height(2.dp))
-            val sources = model.channels.filter { it.title().contains(model.channelQuery, ignoreCase = true) }
+            val sources = model.channels.filter { it.title().contains(model.channelQuery, ignoreCase = true) || it.id() in model.channelSearchMatches }
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 items(sources, key = { it.id() }) { source ->
                     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(role = Role.Checkbox, onClickLabel = if (source.selected()) "Remove ${source.title()}" else "Add ${source.title()}") { model.select(source) }.padding(start = 4.dp, end = 0.dp, top = 4.dp, bottom = 4.dp).semantics { stateDescription = if (source.selected()) "Selected" else "Not selected" }, verticalAlignment = Alignment.CenterVertically) {
@@ -308,11 +313,11 @@ internal fun videoDetails(video: Video): String = listOfNotNull(VideoSort.year(v
                         if (source.selected()) IconButton(onClick = { model.browse(source) }) { Icon(CineIcons.ChevronRight, "Browse ${source.title()}") } else Spacer(Modifier.size(48.dp))
                     }
                 }
-                if (sources.isEmpty()) item { Text("No channels found yet", Modifier.padding(vertical = 20.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                if (sources.isEmpty()) item { Text(if (model.channelSearchLoading) "Looking for matching channels and groups…" else if (model.scanning) "Finding channels and groups…" else if (model.channelQuery.isBlank()) "No channels found yet" else "No matching channels yet. Try another name or continue scanning.", Modifier.padding(vertical = 20.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 item {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         TextButton(onClick = model::scanSources, enabled = !model.scanning && model.discoveryMore) { Text(if (model.scanning) "Finding sources…" else "Find more / Retry") }
-                        if (model.channelQuery.isNotBlank()) TextButton(onClick = model::searchChannels, enabled = !model.busy) { Text("Search Telegram") }
+                        if (model.channelQuery.isNotBlank()) TextButton(onClick = model::searchChannels, enabled = !model.channelSearchLoading) { Text(if (model.channelSearchLoading) "Searching…" else "Search Telegram") }
                     }
                 }
             }
@@ -324,7 +329,7 @@ internal fun videoDetails(video: Video): String = listOfNotNull(VideoSort.year(v
     var confirmation by remember { mutableStateOf<String?>(null) }
     var notices by remember { mutableStateOf(false) }
     Column(modifier.verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-        Text("Your space", fontSize = 28.sp, fontWeight = FontWeight.Bold)
+        Text("Your space", fontSize = 24.sp, fontWeight = FontWeight.Bold)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.primaryContainer) { Icon(CineIcons.PersonOutline, null, Modifier.padding(16.dp).size(32.dp), tint = MaterialTheme.colorScheme.primary) }
             Column(Modifier.padding(start = 16.dp)) {
@@ -370,7 +375,7 @@ internal fun videoDetails(video: Video): String = listOfNotNull(VideoSort.year(v
     var value by remember(model.stage) { mutableStateOf("") }
     Column(Modifier.widthIn(max = 560.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         Text("YOUR CHANNELS. YOUR CINEMA.", fontSize = 11.sp, letterSpacing = 2.sp, color = MaterialTheme.colorScheme.primary)
-        Text("Make time for\na good story.", fontSize = 36.sp, lineHeight = 42.sp, fontWeight = FontWeight.Bold)
+        Text("Make time for\na good story.", fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.Bold)
         Text("Connect Telegram to browse the channels you choose, then watch with VLC.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (model.stage == "credentials") {
             Text("Your API credentials stay encrypted on this device.", style = MaterialTheme.typography.bodySmall)

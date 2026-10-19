@@ -190,22 +190,33 @@ final class Telegram {
         nextList = 1 - list;
         return !(exhausted[0] && exhausted[1]);
     }
-    private void resolveChat(long id, Library store, long session) throws Exception {
+    private boolean resolveChat(long id, Library store, long session) throws Exception {
         JSONObject chat = request(Json.obj("@type", "getChat", "chat_id", id));
         JSONObject type = Json.child(chat, "type"); String kind = Json.type(type);
-        if (!kind.equals("chatTypeSupergroup") && !kind.equals("chatTypeBasicGroup")) return;
+        if (!kind.equals("chatTypeSupergroup") && !kind.equals("chatTypeBasicGroup")) return false;
         boolean supergroup = kind.equals("chatTypeSupergroup");
         JSONObject group = request(Json.obj("@type", supergroup ? "getSupergroup" : "getBasicGroup",
             supergroup ? "supergroup_id" : "basic_group_id", type.optLong(supergroup ? "supergroup_id" : "basic_group_id")));
         check(session);
         store.chat(id, chat.optString("title"), Json.type(Json.child(group, "status")).equals("chatMemberStatusCreator"), group.optLong("date"));
+        return true;
     }
-    void searchChats(String query) throws Exception {
+    Set<Long> searchChats(String query) throws Exception {
         Library store = requireLibrary(); long session = generation;
-        for (String method : new String[]{"searchChats", "searchChatsOnServer"}) {
+        Set<Long> candidates = new java.util.LinkedHashSet<>();
+        for (String method : new String[]{"searchChatsOnServer", "searchChats"}) {
             JSONArray ids = Json.array(request(Json.obj("@type", method, "query", query, "limit", 30)), "chat_ids");
-            for (int i = 0; i < ids.length(); i++) { check(session); resolveChat(ids.getLong(i), store, session); }
+            for (int i = 0; i < ids.length(); i++) candidates.add(ids.getLong(i));
         }
+        Set<Long> matches = new java.util.LinkedHashSet<>();
+        for (long id : candidates) {
+            check(session);
+            if (resolveChat(id, store, session)) {
+                matches.add(id);
+                if (matches.size() >= 30) break;
+            }
+        }
+        return matches;
     }
     Library requireLibrary() {
         Library result = library;
