@@ -1,0 +1,12 @@
+build/
+DerivedData/
+.build/
+.swiftpm/
+Pods/
+*.xcworkspace/
+*.xcodeproj/
+.DS_Store
+*.mobileprovision
+*.p12
+telegram-config.local.json
+TelegramSession/
