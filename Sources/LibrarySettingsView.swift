@@ -6,6 +6,7 @@ struct CollectionPicker: View {
     @EnvironmentObject private var library: LibraryStore
     @Environment(\.dismiss) private var dismiss
     @State private var query = ""
+    @State private var scope = 2
     var openCollection: (TelegramChat) -> Void = { _ in }
     @State private var changing: Set<Int64> = []
     @State private var visibleLimit = 30
@@ -13,7 +14,12 @@ struct CollectionPicker: View {
     @State private var scanRevision = 0
     private var collections: [TelegramChat] {
         TelegramChat.ownerFirst(library.snapshot.collections.filter {
-            $0.isCollection && $0.matches(query)
+            let matches = $0.isCollection && $0.matches(query)
+            switch scope {
+            case 0: return matches && $0.isOwner == true && $0.isChannel == true
+            case 1: return matches && library.snapshot.selected.contains($0.id)
+            default: return matches
+            }
         })
     }
     var body: some View {
@@ -26,6 +32,9 @@ struct CollectionPicker: View {
                             Text("Only your picks.\nOnly your screen.").font(.system(size: 30, weight: .bold)).tracking(-1)
                             Text("Owned channels appear first, oldest Telegram date first. Select the sources you want. Only selected channels and groups load videos.").font(.subheadline).foregroundStyle(theme.muted)
                         }
+                        Picker("Channels to display", selection: $scope) {
+                            Text("My channels").tag(0); Text("Selected").tag(1); Text("All sources").tag(2)
+                        }.pickerStyle(.segmented)
                         HStack {
                             Image(systemName: "magnifyingglass").foregroundStyle(theme.muted)
                             TextField("Search your Telegram channels", text: $query).textInputAutocapitalization(.never).disableAutocorrection(true)
@@ -66,7 +75,8 @@ struct CollectionPicker: View {
                 defer { scanning = false }
                 await telegram.discoverCollections()
             }
-            .task(id: query) { await telegram.searchCollections(query, channelsOnly: false) }
+            .task(id: "\(scope)_\(query)") { await telegram.searchCollections(query, channelsOnly: scope == 0) }
+            .onChange(of: scope) { _ in visibleLimit = 30 }
             .onChange(of: query) { _ in visibleLimit = 30 }
         }.foregroundStyle(theme.text).tint(theme.accent).navigationViewStyle(.stack).preferredColorScheme(theme.scheme).buttonStyle(CinespiceButtonStyle())
     }

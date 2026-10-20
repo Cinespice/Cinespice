@@ -8,7 +8,7 @@ See [Android translation](ANDROID-UI.md) and [device checks](TOUCH-CHECKLIST.md)
 
 - Header: CINESPICE refresh button, one Channels icon, Profile icon. A back arrow
   appears inside a collection. No duplicate search or channel-selection shortcuts.
-- Footer: **Home / Favorites / Search / Downloads / History**. Five equal cells;
+- Footer: **Home / My channels / Favorites / Search / Downloads / History**. Six equal cells;
   48-point minimum targets, 3-point vertical padding. Header controls remain at
   least 44 points. Safe-area space is retained for the camera and home indicator.
 - Content uses 20–24-point margins, adaptive grids (140-point minimum cards),
@@ -27,23 +27,26 @@ See [Android translation](ANDROID-UI.md) and [device checks](TOUCH-CHECKLIST.md)
 
 | Page | Content and behavior |
 | --- | --- |
-| Home | Seven-slot swipe hero, Continue Watching (up to 12), sorted cached library grid |
+| Home | Seven-slot swipe hero, Continue Watching (up to 12), horizontal selected-channel cards and per-channel video rails, sorted cached library grid |
+| My channels | One section per selected Telegram source, with a browse arrow to the complete channel page |
 | Favorites | Favorites and Watchlist segmented choices; empty guidance; sorting |
 | Search | Input and empty guidance initially; only nonempty queries show cached and selected-source Telegram results; remote pagination remains bounded |
 | Downloads | Preparing, active and completed full downloads from selected sources; video menu exposes cancel/export; streaming fragments are excluded |
 | History | Five most recently watched entries; older resume positions remain stored |
-| Collection | Sorted cached videos, near-bottom pagination, retry, no duplicate source selectors |
+| Collection | Sorted cached videos, explicit Load more / Retry pagination, no automatic endless scroll |
 | Profile | Real account display name/username, palette, request-feature placeholder, storage/history cleanup, creator links, sign-out |
 
-The single source sheet shows all eligible channels/groups, owner-first, oldest
-available Telegram date first. Ownership/date are not guessed. Typing searches
+The source sheet has **My channels / Selected / All sources** scopes and shows
+eligible channels/groups, owner-first, oldest available Telegram date first.
+Ownership/date are not guessed. Typing searches
 saved source metadata and Telegram's local/server chat search; resolve enough IDs
 to find up to 30 actual groups/channels before applying the result cap, since
 Telegram may mix people and bots into an unfiltered result page. Show progress,
 empty and retry/error states in the sheet. Tap a row to select or deselect;
 selected rows gain an independent arrow to browse. Scanning while visible is
-gradual, 30 sources at a time. Only selected sources load media. A collection
-page requests at most 30 video and 30 document messages per page.
+gradual, 30 sources at a time. Closing the picker loads the first page for each
+selected source; tapping a channel arrow opens its full collection page. A
+collection page requests at most 30 video and 30 document messages per page.
 
 ### Saved lists and downloads
 
