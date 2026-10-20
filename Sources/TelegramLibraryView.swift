@@ -22,6 +22,7 @@ struct TelegramLibraryView: View {
     @State private var viewport = CGSize(width: 390, height: 844)
     @State private var detailsVideo: TelegramVideo?
     @State private var query = ""
+    @State private var collectionQuery = ""
     @State private var exportFile: VideoExport?
     @State private var exportDirectory: URL?
     @State private var exporting = false
@@ -98,7 +99,6 @@ struct TelegramLibraryView: View {
                         case 2: searchPage
                         case 3: downloadsPage
                         case 4: historyPage
-                        case 5: collectionsPage
                         default: home
                         }
                     }
@@ -148,8 +148,13 @@ struct TelegramLibraryView: View {
             }
             refreshMessage = "Refreshing search…"
         } else if let chat = collection {
-            telegram.loadChat(chat.id, refresh: true)
-            refreshMessage = "Refreshing " + chat.title + "…"
+            if !collectionQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Task { await telegram.searchVideos(collectionQuery, in: chat.id) }
+                refreshMessage = "Refreshing search in " + chat.title + "…"
+            } else {
+                telegram.loadChat(chat.id, refresh: true)
+                refreshMessage = "Refreshing " + chat.title + "…"
+            }
         } else if !library.selectedCollections.isEmpty {
             for chat in library.selectedCollections { telegram.loadChat(chat.id, refresh: true) }
             refreshMessage = "Refreshing selected sources, one page at a time…"
@@ -166,28 +171,20 @@ struct TelegramLibraryView: View {
         VStack(alignment: .leading, spacing: 20) {
             heroCarousel
             if !library.continueWatching.isEmpty { rail("Continue Watching", subtitle: "", videos: Array(library.continueWatching.prefix(12)), wide: true) }
-            if !library.selectedCollections.isEmpty {
-                VStack(alignment: .leading, spacing: 14) {
-                    HStack { Text("Your channels").font(.title3.weight(.bold)); Spacer(); Button("Manage") { showCollections = true }.font(.caption.weight(.semibold)).foregroundStyle(theme.muted) }.padding(.horizontal, 20)
+            VStack(alignment: .leading, spacing: 14) {
+                HStack { Text("Your channels").font(.title3.weight(.bold)); Spacer(); Button("Manage") { showCollections = true }.font(.caption.weight(.semibold)).foregroundStyle(theme.muted) }.padding(.horizontal, 20)
+                if library.selectedCollections.isEmpty {
+                    VStack(spacing: 12) {
+                        LibraryEmptyState(symbol: "rectangle.stack", title: "Choose your channels", detail: "Select Telegram channels or groups to make them appear here.")
+                        Button("Choose channels") { showCollections = true }.buttonStyle(.borderedProminent).tint(theme.accent)
+                    }.padding(.horizontal, 20)
+                } else {
                     ScrollView(.horizontal, showsIndicators: false) {
                         LazyHStack(spacing: 12) { ForEach(library.selectedCollections) { channelTile($0).frame(width: 238) } }.padding(.horizontal, 20)
                     }
                 }
-                ForEach(Array(library.selectedCollections.prefix(4))) { chat in
-                    let videos = browseVideos.filter { $0.chatID == chat.id }
-                    if !videos.isEmpty {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Button { openCollection(chat) } label: { HStack { Text(chat.title).font(.title3.weight(.bold)); Spacer(); Image(systemName: "chevron.right").font(.caption.weight(.semibold)) }.foregroundStyle(theme.text).padding(.horizontal, 20).frame(minHeight: 44).contentShape(Rectangle()) }
-                            posterRail(Array(videos.prefix(18)), wide: false)
-                        }
-                    }
-                }
             }
-            HStack { Text("Your library").font(.title3.bold()); Spacer(); sortControl }.padding(.horizontal, 20)
-            releaseSortHint
-            if browseVideos.isEmpty { LibraryEmptyState(symbol: "film", title: "Your cinema starts here", detail: "Use the channel icon above to select and open a source. Only your selected sources load videos.") }
-            else { grid(browseVideos) }
-            if !telegram.loadingCollections.isEmpty { ProgressView("Loading a small page…").frame(maxWidth: .infinity).font(.caption).tint(theme.accent) }
+            if !telegram.loadingCollections.isEmpty { ProgressView("Loading selected channels…").frame(maxWidth: .infinity).font(.caption).tint(theme.accent) }
         }
     }
 
@@ -205,25 +202,6 @@ struct TelegramLibraryView: View {
                 }.padding(14)
             }.frame(height: 142).clipShape(RoundedRectangle(cornerRadius: 10)).contentShape(Rectangle())
         }.buttonStyle(CinespiceButtonStyle())
-    }
-
-    private var collectionsPage: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            pageTitle("Your channels", subtitle: "CHOSEN BY YOU")
-            if library.selectedCollections.isEmpty { LibraryEmptyState(symbol: "rectangle.stack", title: "Choose your screen", detail: "Use Channels above to select the sources you want.") }
-            ForEach(library.selectedCollections) { chat in
-                let videos = order.sort(browseVideos.filter { $0.chatID == chat.id })
-                VStack(alignment: .leading, spacing: 10) {
-                    Button { openCollection(chat) } label: {
-                        HStack { Text(chat.title).font(.title3.weight(.bold)).lineLimit(1); Spacer(); Image(systemName: "chevron.right").font(.caption.weight(.semibold)) }
-                            .foregroundStyle(theme.text).padding(.horizontal, 20).frame(minHeight: 44).contentShape(Rectangle())
-                    }
-                    if videos.isEmpty { Text("Loading videos…").font(.caption).foregroundStyle(theme.muted).padding(.horizontal, 20) }
-                    else { posterRail(Array(videos.prefix(18)), wide: false) }
-                }
-            }
-            if !telegram.loadingCollections.isEmpty { ProgressView("Loading selected channels…").frame(maxWidth: .infinity).tint(theme.accent) }
-        }
     }
 
     private var heroHeight: CGFloat { min(440, max(290, viewport.height * 0.49)) }
@@ -316,26 +294,46 @@ struct TelegramLibraryView: View {
     }
 
     private func collectionPage(_ chat: TelegramChat) -> some View {
-        let items = order.sort(browseVideos.filter { $0.chatID == chat.id })
+        let text = collectionQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cached = browseVideos.filter { $0.chatID == chat.id }
+        let local = text.isEmpty ? cached : cached.filter { $0.title.localizedCaseInsensitiveContains(text) || ($0.fileName?.localizedCaseInsensitiveContains(text) == true) }
+        let remote = text.isEmpty ? [] : telegram.videoSearchResults.filter { $0.chatID == chat.id }
+        let items = order.sort(Array(Dictionary((local + remote).map { ($0.id, $0) }, uniquingKeysWith: { _, latest in latest }).values))
         let cachedIndex = library.snapshot.indexes[chat.id]
         return VStack(alignment: .leading, spacing: 20) {
             pageTitle(chat.title, subtitle: chat.isOwner == true ? "YOUR CHANNEL" : "YOUR SELECTION")
             HStack {
-                Text("\(items.count) cached titles").font(.caption).foregroundStyle(theme.muted)
+                Image(systemName: "magnifyingglass").foregroundStyle(theme.muted)
+                TextField("Search this channel", text: $collectionQuery).textInputAutocapitalization(.never).disableAutocorrection(true)
+                if !collectionQuery.isEmpty {
+                    Button { collectionQuery = "" } label: { Image(systemName: "xmark.circle.fill").frame(width: 44, height: 44).contentShape(Rectangle()) }.accessibilityLabel("Clear channel search")
+                }
+            }.frame(minHeight: 44).padding(.horizontal, 15).padding(.vertical, 4).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16)).padding(.horizontal, 24)
+            HStack {
+                Text(text.isEmpty ? "\(items.count) loaded titles" : "\(items.count) results in this channel").font(.caption).foregroundStyle(theme.muted)
                 Spacer()
                 sortControl
             }.padding(.horizontal, 20)
             if order == .oldest { Text("Oldest loaded titles first. Load another page to include earlier uploads.").font(.caption).foregroundStyle(theme.muted).padding(.horizontal, 20) }
             releaseSortHint
             grid(items)
+            if telegram.isSearchingVideos { ProgressView("Searching this channel…").frame(maxWidth: .infinity).tint(theme.accent) }
+            else if !text.isEmpty && !telegram.videoSearchError.isEmpty {
+                Text(telegram.videoSearchError).font(.caption).foregroundStyle(.orange)
+                Button("Retry channel search") { Task { await telegram.searchVideos(text, in: chat.id) } }
+            }
             if let error = telegram.collectionErrors[chat.id] { Text(error).font(.caption).foregroundStyle(.orange).padding(.horizontal, 24) }
-            if items.isEmpty && !telegram.loadingCollections.contains(chat.id) { LibraryEmptyState(symbol: "film", title: "No cached titles", detail: "Load a page or tap Cinespice to refresh this channel.") }
-            if telegram.loadingCollections.contains(chat.id) { ProgressView("Finding more videos…").frame(maxWidth: .infinity).tint(theme.accent) }
-            else if cachedIndex == nil || cachedIndex?.hasMore == true {
+            if items.isEmpty && !telegram.loadingCollections.contains(chat.id) && !telegram.isSearchingVideos {
+                LibraryEmptyState(symbol: text.isEmpty ? "film" : "magnifyingglass", title: text.isEmpty ? "No titles loaded" : "No matching videos", detail: text.isEmpty ? "Load this channel's videos to start browsing." : "Try another title or filename in this channel.")
+            }
+            if !text.isEmpty && !telegram.isSearchingVideos && telegram.videoSearchError.isEmpty && telegram.hasMoreVideoResults {
+                Button { Task { await telegram.nextVideoSearchPage() } } label: { Text("More channel results").frame(minHeight: 44) }.buttonStyle(.bordered).tint(theme.accent).frame(maxWidth: .infinity)
+            } else if text.isEmpty && telegram.loadingCollections.contains(chat.id) { ProgressView("Finding more videos…").frame(maxWidth: .infinity).tint(theme.accent) }
+            else if text.isEmpty && (cachedIndex == nil || cachedIndex?.hasMore == true) {
                 Button { telegram.loadChat(chat.id) } label: { Text("Load more videos").frame(minHeight: 44) }.buttonStyle(.bordered).tint(theme.accent).frame(maxWidth: .infinity)
-
             }
         }
+        .task(id: "collection_\(chat.id)_\(collectionQuery)") { await telegram.searchVideos(collectionQuery, in: chat.id) }
     }
 
     private var searchPage: some View {
@@ -411,7 +409,11 @@ struct TelegramLibraryView: View {
             } catch { playbackError = "Could not export video: \(error.localizedDescription)" }
         }
     }
-    private func openCollection(_ chat: TelegramChat) { collection = chat; telegram.ensureChat(chat.id) }
+    private func openCollection(_ chat: TelegramChat) {
+        if collection?.id != chat.id { collectionQuery = "" }
+        collection = chat
+        telegram.ensureChat(chat.id)
+    }
     private func play(_ video: TelegramVideo, resume: Bool = true) {
         guard openingID == nil, selection == nil else { return }
         openingTitle = video.fileName ?? video.title
@@ -458,7 +460,6 @@ struct TelegramLibraryView: View {
             tabButton(2, "Search", "magnifyingglass")
             tabButton(3, "Downloads", "arrow.down.circle")
             tabButton(4, "History", "clock")
-            tabButton(5, "My channels", "rectangle.stack")
         }.padding(.horizontal, 8).padding(.vertical, 3).background(.ultraThinMaterial)
     }
     private func tabButton(_ index: Int, _ title: String, _ symbol: String) -> some View {

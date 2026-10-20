@@ -65,14 +65,15 @@ final class TelegramClient: ObservableObject {
         }
     }
 
-    func searchVideos(_ query: String) async {
+    func searchVideos(_ query: String, in chatID: Int64? = nil) async {
         let generation = UUID(); videoSearchGeneration = generation
         videoSearchResults = []; videoSearchError = ""; hasMoreVideoResults = false
         videoSearch = nil; isSearchingVideos = false
         let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, stage == .ready else { return }
         let session = accountSession
-        let search = TelegramVideoSearch(chatIDs: library.selectedCollections.map(\.id), query: text) { [weak self] request in
+        let chatIDs = chatID.map { [$0] } ?? library.selectedCollections.map(\.id)
+        let search = TelegramVideoSearch(chatIDs: chatIDs, query: text) { [weak self] request in
             guard let self else { throw CancellationError() }
             return try await self.sessionRequest(request, session: session)
         }

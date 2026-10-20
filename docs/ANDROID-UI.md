@@ -41,8 +41,12 @@ play/resume, start over, download/cancel, export and history actions. Use scoped
 message IDs and an account-specific Room database; list membership is independent
 of caches and watch history. Deselecting a source hides, not deletes, saved items.
 
-Search starts empty. Debounce remote work, query only selected sources, merge by
+Search is universal across all selected sources and starts empty. Debounce remote work, query only selected sources, merge by
 message ID and retain server paging cursors. Show pending/error/retry feedback.
+Home contains a single horizontal rail of selected channel cards, with no global
+library grid or repeated per-channel video rails. Tapping a card opens that
+channel's collection page. Its search field is scoped to that channel and shares
+the library sort control. The Search tab continues to search all selected sources.
 The Channels picker searches saved metadata as the user types, then merges
 matching Telegram server and local chat results; it must filter to groups/channels
 before limiting visible matches. Show search progress and errors inside the picker.
