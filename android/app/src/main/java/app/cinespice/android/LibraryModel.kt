@@ -73,7 +73,7 @@ class LibraryModel(application: Application, private val saved: SavedStateHandle
             account = telegram.requireLibrary().accountId
             store = SavedStore.open(getApplication(), account)
             artwork = Artwork(telegram, File(getApplication<Application>().cacheDir, "artwork_$account"))
-            discoveryMore = true; lastSearch = null
+            discoveryMore = true; lastSearch = null; collectionSearchResults = emptyList(); collectionSearchError = ""
             reload(); reconcileDownloads()
             if (page == "search" && query.isNotBlank()) search(query)
         } else if (stage != "ready" && account != -1L) {
