@@ -45,7 +45,7 @@ internal val palettes = listOf(
     CinePalette("Sage", Color(0xFFF1F6F2), Color(0xFFDFEAE2), Color(0xFF226347), false)
 )
 internal data class Destination(val id: String, val title: String, val icon: ImageVector)
-internal val destinations = listOf(Destination("home", "Home", Icons.Default.Home), Destination("favorites", "Favorites", Icons.Default.FavoriteBorder), Destination("search", "Search", Icons.Default.Search), Destination("downloads", "Downloads", CineIcons.Download), Destination("history", "History", CineIcons.History))
+internal val destinations = listOf(Destination("home", "Home", Icons.Default.Home), Destination("channels", "My channels", CineIcons.VideoLibrary), Destination("favorites", "Favorites", Icons.Default.FavoriteBorder), Destination("search", "Search", Icons.Default.Search), Destination("downloads", "Downloads", CineIcons.Download), Destination("history", "History", CineIcons.History))
 
 @Composable internal fun Cinespice(activity: MainActivity, model: LibraryModel) {
     val palette = palettes.firstOrNull { it.name == model.palette } ?: palettes.first()
@@ -95,7 +95,7 @@ internal val destinations = listOf(Destination("home", "Home", Icons.Default.Hom
                     }
                 }, bottomBar = {
                     if (model.stage == "ready" && !rail && !ime) NavigationBar(modifier = Modifier.heightIn(min = if (LocalDensity.current.fontScale > 1.4f) 112.dp else 80.dp), containerColor = palette.surface, tonalElevation = 0.dp) {
-                        destinations.forEach { dest -> NavigationBarItem(selected = model.page == dest.id, onClick = { navigate(dest.id) }, icon = { Icon(dest.icon, null) }, label = { Text(dest.title, maxLines = if (LocalDensity.current.fontScale > 1.4f) 2 else 1, fontSize = 10.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center) }, modifier = Modifier.semantics { contentDescription = "${dest.title} tab" }) }
+                        destinations.forEach { dest -> NavigationBarItem(selected = model.page == dest.id, onClick = { navigate(dest.id) }, icon = { Icon(dest.icon, null) }, label = { Text(dest.title, maxLines = if (LocalDensity.current.fontScale > 1.4f) 2 else 1, fontSize = 9.sp, softWrap = false, textAlign = androidx.compose.ui.text.style.TextAlign.Center) }, modifier = Modifier.semantics { contentDescription = "${dest.title} tab" }) }
                     }
                 }
             ) { padding ->
@@ -137,6 +137,7 @@ internal val destinations = listOf(Destination("home", "Home", Icons.Default.Hom
 
 @Composable private fun LibraryPage(activity: MainActivity, model: LibraryModel, modifier: Modifier) {
     if (model.page == "profile") { Profile(activity, model, modifier); return }
+    if (model.page == "channels") { MyChannelsPage(activity, model, modifier); return }
     key(model.account, model.page, model.chat, model.savedList) {
         val grid = rememberLazyGridState()
         val videos = when (model.page) {
@@ -147,12 +148,6 @@ internal val destinations = listOf(Destination("home", "Home", Icons.Default.Hom
             "history" -> model.history
             else -> model.sorted(model.videos)
         }
-        val count = videos.size
-        LaunchedEffect(grid, count, model.collectionMore) {
-            snapshotFlow { grid.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }.collect { index ->
-                if (model.page == "collection" && count > 0 && index >= count - 4 && !model.busy && model.collectionMore) model.older()
-            }
-        }
         LazyVerticalGrid(columns = GridCells.Adaptive(140.dp), state = grid, modifier = modifier.testTagCompat("library-grid"), contentPadding = PaddingValues(20.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
             if (model.page == "home") {
                 item(span = { GridItemSpan(maxLineSpan) }) { Hero(activity, model) }
@@ -160,6 +155,29 @@ internal val destinations = listOf(Destination("home", "Home", Icons.Default.Hom
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         SectionTitle("Continue watching")
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) { items(model.continuing, key = { it.key() }) { video -> ContinueCard(activity, model, video) } }
+                    }
+                }
+                val selectedChannels = model.channels.filter { it.selected() }
+                if (selectedChannels.isNotEmpty()) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) { Text("Your channels", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f)); TextButton(onClick = model::showChannels) { Text("Manage") } }
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                items(selectedChannels, key = { it.id() }) { source -> ChannelTile(model, source) }
+                            }
+                        }
+                    }
+                    selectedChannels.take(4).forEach { source ->
+                        val sourceVideos = model.sorted(model.videos.filter { it.chatId == source.id() }).take(18)
+                        if (sourceVideos.isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(source.title(), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    IconButton(onClick = { model.browse(source) }) { Icon(CineIcons.ChevronRight, "Browse ${source.title()}") }
+                                }
+                                LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) { items(sourceVideos, key = { it.key() }) { video -> Box(Modifier.width(155.dp)) { Poster(activity, model, video) } } }
+                            }
+                        }
                     }
                 }
             }
@@ -181,6 +199,42 @@ internal val destinations = listOf(Destination("home", "Home", Icons.Default.Hom
             items(videos, key = { it.key() }) { video -> Poster(activity, model, video) }
             if (model.page == "search" && model.query.isNotBlank()) item(span = { GridItemSpan(maxLineSpan) }) { OutlinedButton(onClick = model::moreSearch, enabled = !model.searching && model.searchMore, modifier = Modifier.fillMaxWidth()) { Text(if (model.searching) "Searching…" else "More results / Retry") } }
             if (model.page == "collection") item(span = { GridItemSpan(maxLineSpan) }) { OutlinedButton(onClick = model::older, enabled = !model.busy && model.collectionMore, modifier = Modifier.fillMaxWidth()) { Text(if (model.collectionMore) "Load older videos / Retry" else "All available pages loaded") } }
+        }
+    }
+}
+
+@Composable private fun MyChannelsPage(activity: MainActivity, model: LibraryModel, modifier: Modifier) {
+    val selected = model.channels.filter { it.selected() }
+    LazyColumn(modifier, contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) { Text("Your channels", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold); Text("SELECTED TELEGRAM COLLECTIONS", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall) }
+                TextButton(onClick = model::showChannels) { Text("Manage") }
+            }
+        }
+        if (selected.isEmpty()) item { EmptyState("Choose your channels", "Tap Manage to select Telegram channels and groups. Their first video page loads when you close the picker.") }
+        items(selected, key = { it.id() }) { source ->
+            val videos = model.sorted(model.videos.filter { it.chatId == source.id() })
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) { Text(source.title(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis); Text("${videos.size} cached videos", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall) }
+                    IconButton(onClick = { model.browse(source) }) { Icon(CineIcons.ChevronRight, "Browse ${source.title()}") }
+                }
+                if (videos.isEmpty()) Text("No videos loaded yet. Tap the arrow to open this channel and load its first page.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                else LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) { items(videos.take(18), key = { it.key() }) { video -> Box(Modifier.width(155.dp)) { Poster(activity, model, video) } } }
+            }
+        }
+    }
+}
+
+@Composable private fun ChannelTile(model: LibraryModel, source: Library.Chat) {
+    val videos = model.videos.filter { it.chatId == source.id() }
+    Card(onClick = { model.browse(source) }, modifier = Modifier.width(230.dp), shape = RoundedCornerShape(14.dp)) {
+        Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(CineIcons.VideoLibrary, null, tint = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) { Text(source.title(), maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold); Text(if (videos.isEmpty()) "Loading videos…" else "${videos.size} cached videos", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall) }
+            Icon(CineIcons.ChevronRight, "Browse ${source.title()}")
         }
     }
 }

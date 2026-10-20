@@ -14,8 +14,8 @@ Use 16–24dp content margins, 16–18dp poster/hero corner radii, and 48dp mini
 touch targets. Honor status/navigation bars, display cutouts and font scaling.
 
 - Compact top app bar: CINESPICE (refresh), Channels icon, Profile icon; collection
-  screens add Back. No second search button, source tab or channel rail.
-- Bottom navigation: Home, Favorites, Search, Downloads, History. Use a navigation
+  screens add Back. Keep one channel selector and one search destination.
+- Bottom navigation: Home, My channels, Favorites, Search, Downloads, History. Use a navigation
   rail on larger windows if space requires it, retaining identical destinations.
 - Adaptive poster grid: about 140dp minimum card width, 16dp gaps, centered content
   capped around 1200dp. Continue Watching uses a horizontal landscape-card rail.
@@ -32,9 +32,12 @@ the underlying screen. Never reuse one LazyListState across all tabs. Use scoped
 ViewModels/SavedStateHandle so configuration changes do not lose the query or
 active screen. Keep account/library/history in durable local storage.
 
-Only Channels opens source selection. Display owner-first channels/groups with a
-selection control and separate browse arrow on selected rows. Discover gradually;
-loading source metadata must not trigger downloads from every channel.
+Only Channels opens source selection. Display owner-first channels/groups with a selection control
+and separate browse arrow on selected rows. Discover gradually;
+loading source metadata must not trigger downloads from every channel. Closing
+the picker loads one initial page for each selected source. My channels shows
+selected-source cards and per-channel video shelves; tapping a browse arrow opens
+that channel's full collection page.
 
 Favorites has Favorites/Watchlist segmented tabs. Card overflow exposes save/remove,
 play/resume, start over, download/cancel, export and history actions. Use scoped

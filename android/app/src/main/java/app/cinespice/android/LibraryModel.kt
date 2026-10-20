@@ -107,7 +107,7 @@ class LibraryModel(application: Application, private val saved: SavedStateHandle
         if (destination == "search" && query.isNotBlank() && session == null) search(query)
     }
     internal fun browse(source: Library.Chat) {
-        closeChannels(); chat = source.id(); chatTitle = source.title()
+        closeChannels(false); chat = source.id(); chatTitle = source.title()
         saved["chat"] = chat; saved["chatTitle"] = chatTitle; collectionMore = true; navigate("collection")
         val target = chat
         work("Loading collection…") { collectionMore = network { loader.withLock { telegram.page(target, false) } }; reload() }
@@ -123,10 +123,24 @@ class LibraryModel(application: Application, private val saved: SavedStateHandle
         reload(); status = if ((if (list == "Favorites") favorites else watchlist).contains(id)) "Saved to $list" else "Removed from $list"
     }
     fun showChannels() { channelsVisible = true; scanSources(); if (channelQuery.isNotBlank()) searchChannels(channelQuery) }
-    fun closeChannels() {
+    fun closeChannels() = closeChannels(true)
+    private fun closeChannels(loadSelected: Boolean) {
         channelsVisible = false; scan?.cancel(); scan = null; scanning = false
         channelSearchEpoch++; channelSearchJob?.cancel(); channelSearchJob = null
         channelSearchLoading = false
+        if (loadSelected && stage == "ready") {
+            val targets = telegram.requireLibrary().chats(true)
+            if (targets.isNotEmpty()) work("Loading selected channels…") {
+                val failed = mutableListOf<String>()
+                for (source in targets) {
+                    try { network { loader.withLock { telegram.page(source.id(), false) } } }
+                    catch (e: CancellationException) { throw e }
+                    catch (_: Exception) { failed += source.title() }
+                }
+                reload()
+                if (failed.isNotEmpty()) status = "Could not load videos from ${failed.size} selected source${if (failed.size == 1) "" else "s"}. Open a source to retry."
+            }
+        }
     }
     fun channelFilter(value: String) {
         channelQuery = value; saved["channelQuery"] = value

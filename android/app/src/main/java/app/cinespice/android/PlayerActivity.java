@@ -27,7 +27,7 @@ public final class PlayerActivity extends androidx.appcompat.app.AppCompatActivi
     private LinearLayout controls;
     private FrameLayout optionsOverlay;
     private int pictureChoice;
-    private TextView message, time;
+    private TextView message, time, remaining, speedLabel, pictureLabel;
     private ProgressBar spinner;
     private SeekBar seek;
     private Button play, unlock;
@@ -50,8 +50,11 @@ public final class PlayerActivity extends androidx.appcompat.app.AppCompatActivi
             }
             if (!dragging) seek.setProgress(duration > 0 ? (int) (position * 1000 / duration) : 0);
             seek.setEnabled(player.isSeekable());
-            time.setText(Ui.time(position) + "  /  " + Ui.time(duration));
-            play.setText(player.isPlaying() ? "Pause" : "Play");
+            time.setText(timelineTime(position));
+            remaining.setText("−" + timelineTime(Math.max(0, duration - position)));
+            speedLabel.setText(String.format(Locale.ROOT, "%g×", (double) player.getRate()));
+            play.setText(player.isPlaying() ? "Ⅱ" : "▶");
+            play.setContentDescription(player.isPlaying() ? "Pause" : "Play");
             if (position != lastTime) { lastMovement = SystemClock.elapsedRealtime(); lastTime = position; }
             boolean stalled = player.isPlaying() && SystemClock.elapsedRealtime() - lastMovement >= 2000;
             spinner.setVisibility(!playbackError && (!positioned || stalled) ? View.VISIBLE : View.GONE);
@@ -83,38 +86,58 @@ public final class PlayerActivity extends androidx.appcompat.app.AppCompatActivi
             return insets.consumeSystemWindowInsets();
         }); root.requestApplyInsets();
         controls = Ui.column(this); controls.setPadding(0, 0, 0, 0); controls.setBackgroundColor(android.graphics.Color.TRANSPARENT);
-        LinearLayout top = Ui.row(this); top.setPadding(Ui.dp(this, 16), Ui.dp(this, 4), Ui.dp(this, 16), Ui.dp(this, 4)); top.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0xD9000000, 0xA6000000, 0x00000000}));
-        top.addView(Ui.quiet(this, "Close", this::finish)); TextView name = Ui.text(this, video.name, 14, Ui.TEXT); name.setMaxLines(2); Ui.weighted(top, name); controls.addView(top, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout top = Ui.row(this); top.setPadding(Ui.dp(this, 10), Ui.dp(this, 4), Ui.dp(this, 10), Ui.dp(this, 4)); top.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0xD9000000, 0xA6000000, 0x00000000}));
+        top.addView(playerIcon("⌄", "Close player", 22, this::finish));
+        LinearLayout title = Ui.column(this); title.setPadding(Ui.dp(this, 4), 0, 0, 0);
+        TextView name = Ui.text(this, video.name, 14, Ui.TEXT); name.setTypeface(android.graphics.Typeface.create("sans-serif-medium", 0)); name.setMaxLines(1); name.setEllipsize(android.text.TextUtils.TruncateAt.END); name.setPadding(0, 0, 0, 0); title.addView(name);
+        TextView brand = Ui.text(this, "CINESPICE", 9, Ui.ACCENT); brand.setTypeface(android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)); brand.setLetterSpacing(.12f); brand.setPadding(0, Ui.dp(this, 2), 0, 0); title.addView(brand);
+        top.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
+        top.addView(playerIcon("▣", "Lock controls", 18, () -> { locked = true; controls.setVisibility(View.GONE); unlock.setVisibility(View.VISIBLE); }));
+        controls.addView(top, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout spacer = new LinearLayout(this); controls.addView(spacer, new LinearLayout.LayoutParams(-1, 0, 1));
-        LinearLayout bottom = Ui.column(this); bottom.setPadding(Ui.dp(this, 16), Ui.dp(this, 12), Ui.dp(this, 16), Ui.dp(this, 12)); bottom.setBackground(new GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP, new int[]{0xE8000000, 0xD9000000, 0x00000000}));
-        message = Ui.text(this, "Opening in VLC…", 15, Ui.ACCENT); bottom.addView(message);
-        spinner = new ProgressBar(this); bottom.addView(spinner, new LinearLayout.LayoutParams(Ui.dp(this, 28), Ui.dp(this, 28)));
-        time = Ui.text(this, "0:00:00", 12, Ui.TEXT); bottom.addView(time);
-        seek = new SeekBar(this); seek.setProgressTintList(android.content.res.ColorStateList.valueOf(0xFFFF774A)); seek.setThumbTintList(android.content.res.ColorStateList.valueOf(0xFFFF774A)); seek.setMax(1000); seek.setContentDescription("Video timeline"); bottom.addView(seek);
+        LinearLayout bottom = Ui.column(this); bottom.setPadding(Ui.dp(this, 12), Ui.dp(this, 22), Ui.dp(this, 12), Ui.dp(this, 8)); bottom.setBackground(new GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP, new int[]{0xF0000000, 0xD9000000, 0x00000000}));
+        LinearLayout status = Ui.row(this); status.setPadding(0, 0, 0, Ui.dp(this, 2));
+        spinner = new ProgressBar(this); spinner.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(Ui.ACCENT)); status.addView(spinner, new LinearLayout.LayoutParams(Ui.dp(this, 16), Ui.dp(this, 16)));
+        message = Ui.text(this, "Opening media…", 11, Ui.ACCENT); message.setPadding(Ui.dp(this, 7), 0, 0, 0); status.addView(message, new LinearLayout.LayoutParams(0, -2, 1)); bottom.addView(status);
+        LinearLayout timeline = Ui.row(this); time = Ui.text(this, "0:00", 11, 0xFFEAE6E3); time.setTypeface(android.graphics.Typeface.MONOSPACE); time.setPadding(0, 0, Ui.dp(this, 8), 0); timeline.addView(time);
+        seek = new SeekBar(this); seek.setProgressTintList(android.content.res.ColorStateList.valueOf(Ui.ACCENT)); seek.setThumbTintList(android.content.res.ColorStateList.valueOf(Ui.ACCENT)); seek.setMax(1000); seek.setContentDescription("Video timeline"); timeline.addView(seek, new LinearLayout.LayoutParams(0, Ui.dp(this, 34), 1));
+        remaining = Ui.text(this, "−0:00", 11, 0xFFEAE6E3); remaining.setTypeface(android.graphics.Typeface.MONOSPACE); remaining.setGravity(Gravity.RIGHT); remaining.setPadding(Ui.dp(this, 8), 0, 0, 0); timeline.addView(remaining); bottom.addView(timeline);
         seek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             public void onStartTrackingTouch(SeekBar bar) { dragging = true; handler.removeCallbacks(hide); }
             public void onStopTrackingTouch(SeekBar bar) { if (player != null && player.isSeekable()) player.setTime(player.getLength() * bar.getProgress() / 1000); dragging = false; reveal(); }
-            public void onProgressChanged(SeekBar bar, int progress, boolean user) { if (user && player != null) time.setText(Ui.time(player.getLength() * progress / 1000)); }
+            public void onProgressChanged(SeekBar bar, int progress, boolean user) { if (user && player != null) { long pos = player.getLength() * progress / 1000; time.setText(timelineTime(pos)); remaining.setText("−" + timelineTime(Math.max(0, player.getLength() - pos))); } }
         });
-        LinearLayout transport = Ui.row(this);
-        Ui.weighted(transport, Ui.button(this, "−10s", () -> skip(-10000)));
-        play = Ui.primary(this, "Pause", () -> { if (player != null) { if (player.isPlaying()) { player.pause(); save(); } else player.play(); play.setText(player.isPlaying() ? "Pause" : "Play"); reveal(); } }); Ui.weighted(transport, play);
-        Ui.weighted(transport, Ui.button(this, "+10s", () -> skip(10000))); bottom.addView(transport);
-        HorizontalScrollView menuScroll = new HorizontalScrollView(this); LinearLayout menu = Ui.row(this); menuScroll.addView(menu); bottom.addView(menuScroll);
-        menu.addView(Ui.button(this, "Audio", () -> tracks(false)));
-        menu.addView(Ui.button(this, "Subtitles", () -> tracks(true)));
-        menu.addView(Ui.button(this, "Speed", this::speed));
-        menu.addView(Ui.button(this, "Picture", this::picture));
-        menu.addView(Ui.button(this, "Rotate", () -> { landscape = !landscape; setRequestedOrientation(landscape ? ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE : ActivityInfo.SCREEN_ORIENTATION_PORTRAIT); reveal(); }));
-        menu.addView(Ui.button(this, "Lock", () -> { locked = true; controls.setVisibility(View.GONE); unlock.setVisibility(View.VISIBLE); }));
-        menu.addView(Ui.button(this, "More", () -> options("More", new String[]{"Download first"}, -1, index -> {
+        LinearLayout transport = Ui.row(this); transport.setGravity(Gravity.CENTER); transport.setPadding(0, Ui.dp(this, 2), 0, Ui.dp(this, 4));
+        transport.addView(playerIcon("↶10", "Back ten seconds", 17, () -> skip(-10000)));
+        play = playerIcon("Ⅱ", "Pause", 26, () -> { if (player != null) { if (player.isPlaying()) { player.pause(); save(); } else player.play(); play.setText(player.isPlaying() ? "Ⅱ" : "▶"); play.setContentDescription(player.isPlaying() ? "Pause" : "Play"); reveal(); } });
+        LinearLayout.LayoutParams playParams = new LinearLayout.LayoutParams(Ui.dp(this, 64), Ui.dp(this, 58)); playParams.setMargins(Ui.dp(this, 16), 0, Ui.dp(this, 16), 0); transport.addView(play, playParams);
+        transport.addView(playerIcon("10↷", "Forward ten seconds", 17, () -> skip(10000))); bottom.addView(transport);
+        LinearLayout menu = Ui.row(this); menu.setGravity(Gravity.CENTER); menu.setPadding(0, Ui.dp(this, 2), 0, 0);
+        LinearLayout speedTool = playerTool("◴", "1×", "Playback speed", this::speed); speedLabel = (TextView) speedTool.getChildAt(1); menu.addView(speedTool, equalTool());
+        menu.addView(playerTool("CC", "Tracks", "Audio and subtitles", () -> tracks(true)), equalTool());
+        LinearLayout pictureTool = playerTool("▣", "Fit", "Picture options", this::picture); pictureLabel = (TextView) pictureTool.getChildAt(1); menu.addView(pictureTool, equalTool());
+        menu.addView(playerTool("↻", "Rotate", "Rotate screen", () -> { landscape = !landscape; setRequestedOrientation(landscape ? ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE : ActivityInfo.SCREEN_ORIENTATION_PORTRAIT); reveal(); }), equalTool());
+        menu.addView(playerTool("•••", "More", "More options", () -> options("More", new String[]{"Audio tracks", "Subtitles", "Download first"}, -1, index -> {
+            if (index == 0) { tracks(false); return; }
+            if (index == 1) { tracks(true); return; }
             if (player != null) player.pause();
             if (bridge != null) { bridge.close(); bridge = null; }
             telegram.io.execute(() -> { try { telegram.download(video); runOnUiThread(() -> { Toast.makeText(this, "Downloading. Reopen the video after download completes.", Toast.LENGTH_LONG).show(); finish(); }); } catch (Exception e) { runOnUiThread(() -> message.setText(e.getMessage())); } });
-        })));
+        })), equalTool());
         controls.addView(bottom, new LinearLayout.LayoutParams(-1, -2));
         unlock = Ui.primary(this, "Unlock", () -> { locked = false; unlock.setVisibility(View.GONE); reveal(); }); unlock.setVisibility(View.GONE);
     }
+    private LinearLayout.LayoutParams equalTool() { return new LinearLayout.LayoutParams(0, Ui.dp(this, 52), 1); }
+    private Button playerIcon(String glyph, String description, int size, Runnable action) {
+        Button button = Ui.quiet(this, glyph, action); button.setTextSize(size); button.setTypeface(android.graphics.Typeface.create("sans-serif-medium", 0)); button.setTextColor(Ui.TEXT); button.setMinHeight(Ui.dp(this, 48)); button.setMinimumHeight(Ui.dp(this, 48)); button.setPadding(0, 0, 0, 0); button.setInsetTop(0); button.setInsetBottom(0); button.setBackgroundTintList(android.content.res.ColorStateList.valueOf(android.graphics.Color.TRANSPARENT)); button.setContentDescription(description); button.setMaxLines(1); button.setGravity(Gravity.CENTER); return button;
+    }
+    private LinearLayout playerTool(String icon, String title, String description, Runnable action) {
+        LinearLayout item = new LinearLayout(this); item.setOrientation(LinearLayout.VERTICAL); item.setGravity(Gravity.CENTER); item.setClickable(true); item.setFocusable(true); item.setContentDescription(description); item.setOnClickListener(v -> action.run());
+        TextView glyph = Ui.text(this, icon, 17, Ui.TEXT); glyph.setGravity(Gravity.CENTER); glyph.setTypeface(android.graphics.Typeface.create("sans-serif-medium", 0)); glyph.setPadding(0, 0, 0, 0); item.addView(glyph, new LinearLayout.LayoutParams(-1, Ui.dp(this, 24)));
+        TextView label = Ui.text(this, title, 10, 0xFFEAE6E3); label.setGravity(Gravity.CENTER); label.setPadding(0, 0, 0, 0); label.setSingleLine(true); label.setEllipsize(android.text.TextUtils.TruncateAt.END); item.addView(label, new LinearLayout.LayoutParams(-1, Ui.dp(this, 18)));
+        return item;
+    }
+    private String timelineTime(long milliseconds) { long seconds = Math.max(0, milliseconds / 1000); return seconds >= 3600 ? String.format(Locale.ROOT, "%d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60) : String.format(Locale.ROOT, "%d:%02d", seconds / 60, seconds % 60); }
     private void start() throws Exception {
         ArrayList<String> options = new ArrayList<>(List.of("--network-caching=1500", "--no-video-title-show", "--freetype-rel-fontsize=" + getPreferences(0).getInt("subtitleSize", 16)));
         vlc = new LibVLC(this, options); player = new MediaPlayer(vlc);
@@ -207,7 +230,7 @@ public final class PlayerActivity extends androidx.appcompat.app.AppCompatActivi
     }
     private void picture() {
         options("Picture", new String[]{"Fit", "Fill / crop", "16:9", "4:3", "21:9", edges ? "Respect screen edges" : "Use screen edges"}, pictureChoice, index -> {
-            if (index < 5) pictureChoice = index;
+            if (index < 5) { pictureChoice = index; pictureLabel.setText(new String[]{"Fit", "Fill", "16:9", "4:3", "21:9"}[index]); }
             if (index == 5) { edges = !edges; getWindow().getDecorView().setSystemUiVisibility(edges ? View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY : View.SYSTEM_UI_FLAG_VISIBLE); root.requestApplyInsets(); }
             else if (index == 4) { player.setVideoScale(MediaPlayer.ScaleType.SURFACE_BEST_FIT); player.setAspectRatio("21:9"); }
             else { player.setAspectRatio(null); player.setVideoScale(new MediaPlayer.ScaleType[]{MediaPlayer.ScaleType.SURFACE_BEST_FIT, MediaPlayer.ScaleType.SURFACE_FILL, MediaPlayer.ScaleType.SURFACE_16_9, MediaPlayer.ScaleType.SURFACE_4_3}[index]); }
