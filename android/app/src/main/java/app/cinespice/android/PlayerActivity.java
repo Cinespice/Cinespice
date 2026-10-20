@@ -89,7 +89,7 @@ public final class PlayerActivity extends androidx.appcompat.app.AppCompatActivi
         LinearLayout top = Ui.row(this); top.setPadding(Ui.dp(this, 10), Ui.dp(this, 4), Ui.dp(this, 10), Ui.dp(this, 4)); top.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0xD9000000, 0xA6000000, 0x00000000}));
         top.addView(playerIcon("⌄", "Close player", 22, this::finish));
         LinearLayout title = Ui.column(this); title.setPadding(Ui.dp(this, 4), 0, 0, 0);
-        TextView name = Ui.text(this, video.name, 14, Ui.TEXT); name.setTypeface(android.graphics.Typeface.create("sans-serif-medium", 0)); name.setMaxLines(1); name.setEllipsize(android.text.TextUtils.TruncateAt.END); name.setPadding(0, 0, 0, 0); title.addView(name);
+        TextView name = Ui.text(this, video.name, 14, Ui.TEXT); name.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)); name.setMaxLines(1); name.setEllipsize(android.text.TextUtils.TruncateAt.END); name.setPadding(0, 0, 0, 0); title.addView(name);
         TextView brand = Ui.text(this, "CINESPICE", 9, Ui.ACCENT); brand.setTypeface(android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)); brand.setLetterSpacing(.12f); brand.setPadding(0, Ui.dp(this, 2), 0, 0); title.addView(brand);
         top.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
         top.addView(playerIcon("▣", "Lock controls", 18, () -> { locked = true; controls.setVisibility(View.GONE); unlock.setVisibility(View.VISIBLE); }));
@@ -129,11 +129,11 @@ public final class PlayerActivity extends androidx.appcompat.app.AppCompatActivi
     }
     private LinearLayout.LayoutParams equalTool() { return new LinearLayout.LayoutParams(0, Ui.dp(this, 52), 1); }
     private Button playerIcon(String glyph, String description, int size, Runnable action) {
-        Button button = Ui.quiet(this, glyph, action); button.setTextSize(size); button.setTypeface(android.graphics.Typeface.create("sans-serif-medium", 0)); button.setTextColor(Ui.TEXT); button.setMinHeight(Ui.dp(this, 48)); button.setMinimumHeight(Ui.dp(this, 48)); button.setPadding(0, 0, 0, 0); button.setBackgroundTintList(android.content.res.ColorStateList.valueOf(android.graphics.Color.TRANSPARENT)); button.setContentDescription(description); button.setMaxLines(1); button.setGravity(Gravity.CENTER); return button;
+        Button button = Ui.quiet(this, glyph, action); button.setTextSize(size); button.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)); button.setTextColor(Ui.TEXT); button.setMinHeight(Ui.dp(this, 48)); button.setMinimumHeight(Ui.dp(this, 48)); button.setPadding(0, 0, 0, 0); button.setBackgroundTintList(android.content.res.ColorStateList.valueOf(android.graphics.Color.TRANSPARENT)); button.setContentDescription(description); button.setMaxLines(1); button.setGravity(Gravity.CENTER); return button;
     }
     private LinearLayout playerTool(String icon, String title, String description, Runnable action) {
         LinearLayout item = new LinearLayout(this); item.setOrientation(LinearLayout.VERTICAL); item.setGravity(Gravity.CENTER); item.setClickable(true); item.setFocusable(true); item.setContentDescription(description); item.setOnClickListener(v -> action.run());
-        TextView glyph = Ui.text(this, icon, 17, Ui.TEXT); glyph.setGravity(Gravity.CENTER); glyph.setTypeface(android.graphics.Typeface.create("sans-serif-medium", 0)); glyph.setPadding(0, 0, 0, 0); item.addView(glyph, new LinearLayout.LayoutParams(-1, Ui.dp(this, 24)));
+        TextView glyph = Ui.text(this, icon, 17, Ui.TEXT); glyph.setGravity(Gravity.CENTER); glyph.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)); glyph.setPadding(0, 0, 0, 0); item.addView(glyph, new LinearLayout.LayoutParams(-1, Ui.dp(this, 24)));
         TextView label = Ui.text(this, title, 10, 0xFFEAE6E3); label.setGravity(Gravity.CENTER); label.setPadding(0, 0, 0, 0); label.setSingleLine(true); label.setEllipsize(android.text.TextUtils.TruncateAt.END); item.addView(label, new LinearLayout.LayoutParams(-1, Ui.dp(this, 18)));
         return item;
     }
