@@ -45,7 +45,7 @@ internal val palettes = listOf(
     CinePalette("Sage", Color(0xFFF1F6F2), Color(0xFFDFEAE2), Color(0xFF226347), false)
 )
 internal data class Destination(val id: String, val title: String, val icon: ImageVector)
-internal val destinations = listOf(Destination("home", "Home", Icons.Default.Home), Destination("channels", "My channels", CineIcons.VideoLibrary), Destination("favorites", "Favorites", Icons.Default.FavoriteBorder), Destination("search", "Search", Icons.Default.Search), Destination("downloads", "Downloads", CineIcons.Download), Destination("history", "History", CineIcons.History))
+internal val destinations = listOf(Destination("home", "Home", Icons.Default.Home), Destination("favorites", "Favorites", Icons.Default.FavoriteBorder), Destination("search", "Search", Icons.Default.Search), Destination("downloads", "Downloads", CineIcons.Download), Destination("history", "History", CineIcons.History))
 
 @Composable internal fun Cinespice(activity: MainActivity, model: LibraryModel) {
     val palette = palettes.firstOrNull { it.name == model.palette } ?: palettes.first()
@@ -137,16 +137,15 @@ internal val destinations = listOf(Destination("home", "Home", Icons.Default.Hom
 
 @Composable private fun LibraryPage(activity: MainActivity, model: LibraryModel, modifier: Modifier) {
     if (model.page == "profile") { Profile(activity, model, modifier); return }
-    if (model.page == "channels") { MyChannelsPage(activity, model, modifier); return }
     key(model.account, model.page, model.chat, model.savedList) {
         val grid = rememberLazyGridState()
         val videos = when (model.page) {
-            "collection" -> model.sorted(model.videos.filter { it.chatId == model.chat })
+            "collection" -> model.sorted((model.videos.filter { it.chatId == model.chat && (model.collectionQuery.isBlank() || it.name.contains(model.collectionQuery, true)) } + model.collectionSearchResults).distinctBy { it.key() })
             "favorites" -> model.sorted(model.videos.filter { SavedStore.id(it) in if (model.savedList == "Favorites") model.favorites else model.watchlist })
             "search" -> if (model.query.isBlank()) emptyList() else model.sorted(model.searchResults)
             "downloads" -> model.sorted(model.videos.filter { model.downloadStates[SavedStore.id(it)] !in listOf(null, "Cancelled") })
             "history" -> model.history
-            else -> model.sorted(model.videos)
+            else -> emptyList()
         }
         LazyVerticalGrid(columns = GridCells.Adaptive(140.dp), state = grid, modifier = modifier.testTagCompat("library-grid"), contentPadding = PaddingValues(20.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
             if (model.page == "home") {
@@ -158,70 +157,40 @@ internal val destinations = listOf(Destination("home", "Home", Icons.Default.Hom
                     }
                 }
                 val selectedChannels = model.channels.filter { it.selected() }
-                if (selectedChannels.isNotEmpty()) {
-                    item(span = { GridItemSpan(maxLineSpan) }) {
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) { Text("Your channels", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f)); TextButton(onClick = model::showChannels) { Text("Manage") } }
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) { Text("Your channels", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f)); TextButton(onClick = model::showChannels) { Text("Manage") } }
+                        if (selectedChannels.isEmpty()) EmptyState("Choose your channels", "Select Telegram channels and groups with the Channels button to see them here.")
+                        else {
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 items(selectedChannels, key = { it.id() }) { source -> ChannelTile(model, source) }
                             }
                         }
                     }
-                    selectedChannels.take(4).forEach { source ->
-                        val sourceVideos = model.sorted(model.videos.filter { it.chatId == source.id() }).take(18)
-                        if (sourceVideos.isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(source.title(), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    IconButton(onClick = { model.browse(source) }) { Icon(CineIcons.ChevronRight, "Browse ${source.title()}") }
-                                }
-                                LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) { items(sourceVideos, key = { it.key() }) { video -> Box(Modifier.width(155.dp)) { Poster(activity, model, video) } } }
-                            }
-                        }
-                    }
                 }
             }
-            item(span = { GridItemSpan(maxLineSpan) }) {
+            if (model.page != "home") item(span = { GridItemSpan(maxLineSpan) }) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(when(model.page) { "favorites" -> "Saved for later"; "search" -> "Find your next watch"; "downloads" -> "Downloads"; "history" -> "Recently watched"; "collection" -> model.chatTitle; else -> "Your library" }, style = MaterialTheme.typography.headlineMedium, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    Text(when(model.page) { "favorites" -> "Saved for later"; "search" -> "Find your next watch"; "downloads" -> "Downloads"; "history" -> "Recently watched"; else -> model.chatTitle }, style = MaterialTheme.typography.headlineMedium, fontSize = 24.sp, fontWeight = FontWeight.Bold)
                     if (model.page == "favorites") SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) { listOf("Favorites", "Watchlist").forEachIndexed { index, list -> SegmentedButton(selected = model.savedList == list, onClick = { model.setList(list) }, shape = SegmentedButtonDefaults.itemShape(index, 2)) { Text(list) } } }
                     if (model.page == "search") {
                         OutlinedTextField(model.query, model::search, Modifier.fillMaxWidth().inputArea(), label = { Text("Search videos") }, singleLine = true, leadingIcon = { Icon(Icons.Default.Search, null) }, trailingIcon = { if (model.query.isNotEmpty()) IconButton(onClick = { model.search("") }) { Icon(Icons.Default.Close, "Clear search") } else Spacer(Modifier.size(48.dp)) }, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { model.search(model.query) }))
                     }
+                    if (model.page == "collection") OutlinedTextField(model.collectionQuery, model::searchCollection, Modifier.fillMaxWidth().inputArea(), label = { Text("Search this channel") }, singleLine = true, leadingIcon = { Icon(Icons.Default.Search, null) }, trailingIcon = { if (model.collectionQuery.isNotEmpty()) IconButton(onClick = { model.searchCollection("") }) { Icon(Icons.Default.Close, "Clear channel search") } else Spacer(Modifier.size(48.dp)) }, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { model.searchCollection(model.collectionQuery) }))
                     if (model.page == "history") Text("Your five most recent watches. Older resume positions stay saved.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                     else if (model.page == "downloads") Text("Full downloads only. Keep the app open until they finish; interrupted downloads can be retried.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                     if (model.page !in listOf("search", "history") || model.query.isNotBlank()) if (model.page != "history") SortControl(model)
                 }
             }
-            if (videos.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
-                EmptyState(when (model.page) { "search" -> if (model.query.isBlank()) "Search your selected channels" else if (model.searching) "Searching…" else "No matching videos"; "favorites" -> "A little inspiration for later"; "downloads" -> "Nothing downloaded yet"; "history" -> "Your next film starts here"; else -> "Your cinema starts here" }, when (model.page) { "search" -> "Enter a title or filename. Only channels you select are searched."; "favorites" -> "Use a video's menu to add it to ${model.savedList}."; "downloads" -> "Choose Download first from a video's menu."; "history" -> "Videos you watch will appear here."; else -> "Open Channels in the header, select a source, then use its arrow to browse." })
+            if (videos.isEmpty() && model.page != "home") item(span = { GridItemSpan(maxLineSpan) }) {
+                EmptyState(when (model.page) { "search" -> if (model.query.isBlank()) "Search your selected channels" else if (model.searching) "Searching…" else "No matching videos"; "collection" -> if (model.collectionQuery.isBlank()) "No videos loaded yet" else if (model.collectionSearching) "Searching this channel…" else "No matching videos"; "favorites" -> "A little inspiration for later"; "downloads" -> "Nothing downloaded yet"; "history" -> "Your next film starts here"; else -> "Your cinema starts here" }, when (model.page) { "search" -> "Enter a title or filename. Only channels you select are searched."; "collection" -> if (model.collectionQuery.isBlank()) "Load this channel's videos to start browsing." else "Search is limited to this channel."; "favorites" -> "Use a video's menu to add it to ${model.savedList}."; "downloads" -> "Choose Download first from a video's menu."; "history" -> "Videos you watch will appear here."; else -> "Select Telegram channels using the Channels button." })
             }
             items(videos, key = { it.key() }) { video -> Poster(activity, model, video) }
             if (model.page == "search" && model.query.isNotBlank()) item(span = { GridItemSpan(maxLineSpan) }) { OutlinedButton(onClick = model::moreSearch, enabled = !model.searching && model.searchMore, modifier = Modifier.fillMaxWidth()) { Text(if (model.searching) "Searching…" else "More results / Retry") } }
-            if (model.page == "collection") item(span = { GridItemSpan(maxLineSpan) }) { OutlinedButton(onClick = model::older, enabled = !model.busy && model.collectionMore, modifier = Modifier.fillMaxWidth()) { Text(if (model.collectionMore) "Load older videos / Retry" else "All available pages loaded") } }
-        }
-    }
-}
-
-@Composable private fun MyChannelsPage(activity: MainActivity, model: LibraryModel, modifier: Modifier) {
-    val selected = model.channels.filter { it.selected() }
-    LazyColumn(modifier, contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-        item {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) { Text("Your channels", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold); Text("SELECTED TELEGRAM COLLECTIONS", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall) }
-                TextButton(onClick = model::showChannels) { Text("Manage") }
-            }
-        }
-        if (selected.isEmpty()) item { EmptyState("Choose your channels", "Tap Manage to select Telegram channels and groups. Their first video page loads when you close the picker.") }
-        items(selected, key = { it.id() }) { source ->
-            val videos = model.sorted(model.videos.filter { it.chatId == source.id() })
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) { Text(source.title(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis); Text("${videos.size} cached videos", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall) }
-                    IconButton(onClick = { model.browse(source) }) { Icon(CineIcons.ChevronRight, "Browse ${source.title()}") }
-                }
-                if (videos.isEmpty()) Text("No videos loaded yet. Tap the arrow to open this channel and load its first page.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-                else LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) { items(videos.take(18), key = { it.key() }) { video -> Box(Modifier.width(155.dp)) { Poster(activity, model, video) } } }
+            if (model.page == "collection" && model.collectionQuery.isNotBlank() && model.collectionSearchError.isNotBlank()) item(span = { GridItemSpan(maxLineSpan) }) { Text(model.collectionSearchError, color = MaterialTheme.colorScheme.error) }
+            if (model.page == "collection") item(span = { GridItemSpan(maxLineSpan) }) {
+                if (model.collectionQuery.isNotBlank()) OutlinedButton(onClick = model::moreCollectionSearch, enabled = !model.collectionSearching && model.collectionSearchMore, modifier = Modifier.fillMaxWidth()) { Text(if (model.collectionSearching) "Searching…" else if (model.collectionSearchError.isNotBlank()) "Retry channel search" else "More channel results") }
+                else OutlinedButton(onClick = model::older, enabled = !model.busy && model.collectionMore, modifier = Modifier.fillMaxWidth()) { Text(if (model.collectionMore) "Load older videos / Retry" else "All available pages loaded") }
             }
         }
     }

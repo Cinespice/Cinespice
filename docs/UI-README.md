@@ -8,7 +8,7 @@ See [Android translation](ANDROID-UI.md) and [device checks](TOUCH-CHECKLIST.md)
 
 - Header: CINESPICE refresh button, one Channels icon, Profile icon. A back arrow
   appears inside a collection. No duplicate search or channel-selection shortcuts.
-- Footer: **Home / My channels / Favorites / Search / Downloads / History**. Six equal cells;
+- Footer: **Home / Favorites / Search / Downloads / History**. Five equal cells;
   48-point minimum targets, 3-point vertical padding. Header controls remain at
   least 44 points. Safe-area space is retained for the camera and home indicator.
 - Content uses 20–24-point margins, adaptive grids (140-point minimum cards),
@@ -27,13 +27,12 @@ See [Android translation](ANDROID-UI.md) and [device checks](TOUCH-CHECKLIST.md)
 
 | Page | Content and behavior |
 | --- | --- |
-| Home | Seven-slot swipe hero, Continue Watching (up to 12), horizontal selected-channel cards and per-channel video rails, sorted cached library grid |
-| My channels | One section per selected Telegram source, with a browse arrow to the complete channel page |
+| Home | Seven-slot swipe hero, Continue Watching (up to 12), and one horizontal rail of selected channel cards. No global library grid or per-channel video rails. |
 | Favorites | Favorites and Watchlist segmented choices; empty guidance; sorting |
-| Search | Input and empty guidance initially; only nonempty queries show cached and selected-source Telegram results; remote pagination remains bounded |
+| Search | Universal input across all selected channels and groups. Empty guidance initially; only nonempty queries show cached and remote results; paging remains bounded |
 | Downloads | Preparing, active and completed full downloads from selected sources; video menu exposes cancel/export; streaming fragments are excluded |
 | History | Five most recently watched entries; older resume positions remain stored |
-| Collection | Sorted cached videos, explicit Load more / Retry pagination, no automatic endless scroll |
+| Collection | One selected channel's videos, scoped search, shared sorting and explicit Load more / Retry pagination; no automatic endless scroll |
 | Profile | Real account display name/username, palette, request-feature placeholder, storage/history cleanup, creator links, sign-out |
 
 The source sheet has **My channels / Selected / All sources** scopes and shows
