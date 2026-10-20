@@ -129,7 +129,7 @@ public final class PlayerActivity extends androidx.appcompat.app.AppCompatActivi
     }
     private LinearLayout.LayoutParams equalTool() { return new LinearLayout.LayoutParams(0, Ui.dp(this, 52), 1); }
     private Button playerIcon(String glyph, String description, int size, Runnable action) {
-        Button button = Ui.quiet(this, glyph, action); button.setTextSize(size); button.setTypeface(android.graphics.Typeface.create("sans-serif-medium", 0)); button.setTextColor(Ui.TEXT); button.setMinHeight(Ui.dp(this, 48)); button.setMinimumHeight(Ui.dp(this, 48)); button.setPadding(0, 0, 0, 0); button.setInsetTop(0); button.setInsetBottom(0); button.setBackgroundTintList(android.content.res.ColorStateList.valueOf(android.graphics.Color.TRANSPARENT)); button.setContentDescription(description); button.setMaxLines(1); button.setGravity(Gravity.CENTER); return button;
+        Button button = Ui.quiet(this, glyph, action); button.setTextSize(size); button.setTypeface(android.graphics.Typeface.create("sans-serif-medium", 0)); button.setTextColor(Ui.TEXT); button.setMinHeight(Ui.dp(this, 48)); button.setMinimumHeight(Ui.dp(this, 48)); button.setPadding(0, 0, 0, 0); button.setBackgroundTintList(android.content.res.ColorStateList.valueOf(android.graphics.Color.TRANSPARENT)); button.setContentDescription(description); button.setMaxLines(1); button.setGravity(Gravity.CENTER); return button;
     }
     private LinearLayout playerTool(String icon, String title, String description, Runnable action) {
         LinearLayout item = new LinearLayout(this); item.setOrientation(LinearLayout.VERTICAL); item.setGravity(Gravity.CENTER); item.setClickable(true); item.setFocusable(true); item.setContentDescription(description); item.setOnClickListener(v -> action.run());
