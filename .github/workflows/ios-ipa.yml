@@ -4,8 +4,30 @@ on:
   workflow_dispatch:
   push:
     branches: [main, master]
+    paths:
+      - ".github/workflows/ios-ipa.yml"
+      - "Package.swift"
+      - "Podfile"
+      - "Podfile.lock"
+      - "project.yml"
+      - "Sources/**"
+      - "Resources/**"
+      - "Support/**"
+      - "Tests/**"
+      - "scripts/**"
   pull_request:
     branches: [main, master]
+    paths:
+      - ".github/workflows/ios-ipa.yml"
+      - "Package.swift"
+      - "Podfile"
+      - "Podfile.lock"
+      - "project.yml"
+      - "Sources/**"
+      - "Resources/**"
+      - "Support/**"
+      - "Tests/**"
+      - "scripts/**"
 
 permissions:
   contents: read
