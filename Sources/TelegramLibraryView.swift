@@ -98,6 +98,7 @@ struct TelegramLibraryView: View {
                         case 2: searchPage
                         case 3: downloadsPage
                         case 4: historyPage
+                        case 5: collectionsPage
                         default: home
                         }
                     }
@@ -118,7 +119,7 @@ struct TelegramLibraryView: View {
         }
         .task(id: "\(showCollections)_" + library.selectedCollections.map { String($0.id) }.joined(separator: ",")) {
             guard !showCollections else { return }
-            if let first = library.selectedCollections.first { telegram.ensureChat(first.id) }
+            for chat in library.selectedCollections { telegram.ensureChat(chat.id) }
         }
     }
 
@@ -165,11 +166,63 @@ struct TelegramLibraryView: View {
         VStack(alignment: .leading, spacing: 20) {
             heroCarousel
             if !library.continueWatching.isEmpty { rail("Continue Watching", subtitle: "", videos: Array(library.continueWatching.prefix(12)), wide: true) }
+            if !library.selectedCollections.isEmpty {
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack { Text("Your channels").font(.title3.weight(.bold)); Spacer(); Button("Manage") { showCollections = true }.font(.caption.weight(.semibold)).foregroundStyle(theme.muted) }.padding(.horizontal, 20)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        LazyHStack(spacing: 12) { ForEach(library.selectedCollections) { channelTile($0).frame(width: 238) } }.padding(.horizontal, 20)
+                    }
+                }
+                ForEach(Array(library.selectedCollections.prefix(4))) { chat in
+                    let videos = browseVideos.filter { $0.chatID == chat.id }
+                    if !videos.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Button { openCollection(chat) } label: { HStack { Text(chat.title).font(.title3.weight(.bold)); Spacer(); Image(systemName: "chevron.right").font(.caption.weight(.semibold)) }.foregroundStyle(theme.text).padding(.horizontal, 20).frame(minHeight: 44).contentShape(Rectangle()) }
+                            posterRail(Array(videos.prefix(18)), wide: false)
+                        }
+                    }
+                }
+            }
             HStack { Text("Your library").font(.title3.bold()); Spacer(); sortControl }.padding(.horizontal, 20)
             releaseSortHint
             if browseVideos.isEmpty { LibraryEmptyState(symbol: "film", title: "Your cinema starts here", detail: "Use the channel icon above to select and open a source. Only your selected sources load videos.") }
             else { grid(browseVideos) }
             if !telegram.loadingCollections.isEmpty { ProgressView("Loading a small page…").frame(maxWidth: .infinity).font(.caption).tint(theme.accent) }
+        }
+    }
+
+    private func channelTile(_ chat: TelegramChat) -> some View {
+        let videos = library.videos.filter { $0.chatID == chat.id }
+        return Button { openCollection(chat) } label: {
+            ZStack(alignment: .bottomLeading) {
+                if let video = videos.first { VideoArtwork(video: video) }
+                else { theme.surface; Image(systemName: "play.rectangle").font(.system(size: 38, weight: .ultraLight)).foregroundStyle(theme.muted.opacity(0.45)).frame(maxWidth: .infinity, maxHeight: .infinity) }
+                LinearGradient(colors: [.clear, .black.opacity(0.9)], startPoint: .top, endPoint: .bottom)
+                VStack(alignment: .leading, spacing: 5) {
+                    if chat.isOwner == true { Label { Text("YOUR CHANNEL").tracking(1) } icon: { Image(systemName: "crown.fill") }.font(.system(size: 8, weight: .bold)).foregroundStyle(theme.accent) }
+                    Text(chat.title).font(.system(size: 16, weight: .bold)).lineLimit(2)
+                    HStack(spacing: 4) { Text(videos.isEmpty ? "Loading videos…" : "\(videos.count) saved titles"); Spacer(); Image(systemName: "chevron.right") }.font(.system(size: 10, weight: .medium)).foregroundStyle(.white.opacity(0.7))
+                }.padding(14)
+            }.frame(height: 142).clipShape(RoundedRectangle(cornerRadius: 10)).contentShape(Rectangle())
+        }.buttonStyle(CinespiceButtonStyle())
+    }
+
+    private var collectionsPage: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            pageTitle("Your channels", subtitle: "CHOSEN BY YOU")
+            if library.selectedCollections.isEmpty { LibraryEmptyState(symbol: "rectangle.stack", title: "Choose your screen", detail: "Use Channels above to select the sources you want.") }
+            ForEach(library.selectedCollections) { chat in
+                let videos = order.sort(browseVideos.filter { $0.chatID == chat.id })
+                VStack(alignment: .leading, spacing: 10) {
+                    Button { openCollection(chat) } label: {
+                        HStack { Text(chat.title).font(.title3.weight(.bold)).lineLimit(1); Spacer(); Image(systemName: "chevron.right").font(.caption.weight(.semibold)) }
+                            .foregroundStyle(theme.text).padding(.horizontal, 20).frame(minHeight: 44).contentShape(Rectangle())
+                    }
+                    if videos.isEmpty { Text("Loading videos…").font(.caption).foregroundStyle(theme.muted).padding(.horizontal, 20) }
+                    else { posterRail(Array(videos.prefix(18)), wide: false) }
+                }
+            }
+            if !telegram.loadingCollections.isEmpty { ProgressView("Loading selected channels…").frame(maxWidth: .infinity).tint(theme.accent) }
         }
     }
 
@@ -282,7 +335,6 @@ struct TelegramLibraryView: View {
                 Button { telegram.loadChat(chat.id) } label: { Text("Load more videos").frame(minHeight: 44) }.buttonStyle(.bordered).tint(theme.accent).frame(maxWidth: .infinity)
 
             }
-            LibraryPageTrigger(enabled: !telegram.loadingCollections.contains(chat.id) && telegram.collectionErrors[chat.id] == nil && (cachedIndex?.hasMore ?? true), revision: String(cachedIndex?.updatedAt.timeIntervalSince1970 ?? 0), viewportHeight: viewport.height) { telegram.loadChat(chat.id) }
         }
     }
 
@@ -406,11 +458,12 @@ struct TelegramLibraryView: View {
             tabButton(2, "Search", "magnifyingglass")
             tabButton(3, "Downloads", "arrow.down.circle")
             tabButton(4, "History", "clock")
+            tabButton(5, "My channels", "rectangle.stack")
         }.padding(.horizontal, 8).padding(.vertical, 3).background(.ultraThinMaterial)
     }
     private func tabButton(_ index: Int, _ title: String, _ symbol: String) -> some View {
         Button { tab = index; collection = nil } label: {
-            VStack(spacing: 4) { Image(systemName: symbol).font(.system(size: 18, weight: tab == index ? .semibold : .regular)); Text(title).font(.system(size: 10, weight: .semibold)) }.frame(maxWidth: .infinity, minHeight: 48).contentShape(Rectangle())
+            VStack(spacing: 4) { Image(systemName: symbol).font(.system(size: 18, weight: tab == index ? .semibold : .regular)); Text(title).font(.system(size: 10, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.72) }.frame(maxWidth: .infinity, minHeight: 48).contentShape(Rectangle())
         }.accessibilityLabel(title).accessibilityAddTraits(tab == index ? .isSelected : [])
             .foregroundStyle(tab == index ? theme.accent : theme.muted).accessibilityValue(tab == index ? "Selected" : "")
     }
